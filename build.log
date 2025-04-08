@@ -1,0 +1,329 @@
+>> Local Products Rules ..... started
+gmake: *** [src/MyAnalysis/JetTreeProducer/src contains only BuildFile.xml without any sources. Better to remove BuildFile.xml too or do not tag this directory] Error 1
+>> Local Products Rules ..... done
+------- copying files from src/PhysicsTools/PatAlgos/scripts -------
+>> copied patReplaceFast.pl
+>> copied patReplaceGenerator.sh
+>> copied patReplaceParser.pl
+>> Subsystem BigProducts built
+------- copying files from src/Validation/MtdValidation/scripts -------
+>> Building CMSSW version CMSSW_15_0_0 ----
+>> Entering Package CommonTools/PileupAlgos
+>> Creating project symlinks
+>> Entering Package CommonTools/ParticleFlow
+>> Entering Package MyAnalysis/JetTreeProducer
+>> Entering Package PhysicsTools/PatAlgos
+>> Entering Package Validation/MtdValidation
+>> Leaving Package MyAnalysis/JetTreeProducer
+>> Package MyAnalysis/JetTreeProducer built
+>> Subsystem MyAnalysis built
+Entering library rule at PhysicsTools/PatAlgos
+Entering library rule at src/PhysicsTools/PatAlgos/test
+Entering library rule at CommonTools/PileupAlgos
+Entering library rule at CommonTools/ParticleFlow
+Entering library rule at src/CommonTools/ParticleFlow/test
+Entering library rule at src/PhysicsTools/PatAlgos/plugins
+>> Compiling  src/PhysicsTools/PatAlgos/src/BaseIsolator.cc
+>> Compiling  src/PhysicsTools/PatAlgos/src/CalculatePtRatioRel.cc
+>> Compiling  src/PhysicsTools/PatAlgos/src/EfficiencyLoader.cc
+>> Compiling  src/PhysicsTools/PatAlgos/src/HemisphereAlgo.cc
+>> Compiling  src/PhysicsTools/PatAlgos/src/IsoDepositIsolator.cc
+>> Compiling  src/PhysicsTools/PatAlgos/src/KinResolutionsLoader.cc
+>> Compiling  src/PhysicsTools/PatAlgos/src/KinematicResolutionRcd.cc
+>> Compiling  src/PhysicsTools/PatAlgos/src/MultiIsolator.cc
+>> Compiling  src/PhysicsTools/PatAlgos/src/MuonMvaIDEstimator.cc
+>> Compiling  src/PhysicsTools/PatAlgos/src/OverlapTest.cc
+>> Compiling  src/PhysicsTools/PatAlgos/src/PATPrimaryVertexSelector.cc
+>> Compiling  src/PhysicsTools/PatAlgos/src/PATUserDataMerger.cc
+>> Compiling  src/PhysicsTools/PatAlgos/src/SimpleIsolator.cc
+>> Compiling  src/PhysicsTools/PatAlgos/src/SoftMuonMvaEstimator.cc
+>> Compiling  src/PhysicsTools/PatAlgos/src/SoftMuonMvaRun3Estimator.cc
+>> Compiling  src/PhysicsTools/PatAlgos/src/StringResolutionProvider.cc
+>> Compiling  src/PhysicsTools/PatAlgos/src/VertexingHelper.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/test/private/PATUserDataTestModule.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/test/private/TestEventHypothesisReader.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/test/private/TestEventHypothesisWriter.cc
+Entering library rule at src/Validation/MtdValidation/plugins
+Entering library rule at src/CommonTools/PileupAlgos/plugins
+>> Compiling  src/CommonTools/PileupAlgos/src/PuppiAlgo.cc
+>> Compiling  src/CommonTools/PileupAlgos/src/PuppiContainer.cc
+Entering library rule at src/CommonTools/ParticleFlow/plugins
+>> Compiling  src/CommonTools/ParticleFlow/src/EventHypothesis.cc
+>> Compiling  src/CommonTools/ParticleFlow/src/PFClusterWidthAlgo.cc
+>> Compiling  src/CommonTools/ParticleFlow/src/PFIsoDepositAlgo.cc
+>> Compiling  src/CommonTools/ParticleFlow/src/PFMETAlgo.cc
+>> Compiling  src/CommonTools/ParticleFlow/src/PFPileUpAlgo.cc
+>> Compiling edm plugin src/CommonTools/ParticleFlow/test/PFIsoReaderDemo.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/BaseMVAValueMapProducer.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/CaloJetSlimmer.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/CandidateSummaryTable.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/DeDxEstimatorRekeyer.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/DisplacedMuonFilterProducer.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/DuplicatedElectronCleaner.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/GenJetFlavourInfoPreserver.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/GenMETExtractor.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/IsolatedTrackCleaner.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/JPTJetSlimmer.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/JetCorrFactorsProducer.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/LeptonTagInfoCollectionProducer.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/LeptonUpdater.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/LowPtGSFToPackedCandidateLinker.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/ModifiedObjectProducer.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PATCleaner.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PATCompositeCandidateProducer.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PATConversionProducer.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PATElectronProducer.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PATElectronSlimmer.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PATGenCandsFromSimTracksProducer.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PATGenJetSlimmer.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PATGenericParticleProducer.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PATHeavyIonProducer.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PATHemisphereProducer.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PATIsolatedTrackProducer.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PATJetProducer.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PATJetSlimmer.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PATJetUpdater.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PATLeptonCountFilter.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PATLeptonTimeLifeInfoProducer.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PATLostTracks.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PATMETProducer.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PATMETSlimmer.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PATMHTProducer.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PATMuonMerger.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PATMuonProducer.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PATMuonSlimmer.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PATObjectCrossLinker.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PATObjectFilter.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PATObjectSelector.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PATObjectUserDataEmbedder.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PATPFParticleProducer.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PATPackedCandidateProducer.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PATPackedGenParticleProducer.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PATPhotonProducer.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PATPhotonSlimmer.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PATPrimaryVertexCleaner.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PATPuppiJetSpecificsProducer.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PATRefitVertexProducer.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PATSecondaryVertexSlimmer.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PATSingleVertexSelector.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PATTauHybridProducer.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PATTauIDEmbedder.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PATTauProducer.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PATTauSignalCandidatesProducer.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PATTauSlimmer.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PATTracksToPackedCandidates.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PATTriggerEventProducer.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PATTriggerMatchEmbedder.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PATTriggerMatcher.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PATTriggerObjectStandAloneSlimmer.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PATTriggerObjectStandAloneUnpacker.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PATTriggerProducer.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PATVertexSlimmer.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PNETLeptonProducer.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PackedCandidateMuonSelectorProducer.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PackedCandidateTrackChi2Producer.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PackedGenParticleSignalProducer.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PackedPFCandidateRefMixer.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/PileupSummaryInfoSlimmer.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/RecoMETExtractor.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/StringResolutionProviderESProducer.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/TauJetCorrFactorsProducer.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/TrackAndVertexUnpacker.cc
+>> Compiling edm plugin src/PhysicsTools/PatAlgos/plugins/VertexAssociationProducer.cc
+>> Compiling edm plugin src/Validation/MtdValidation/plugins/BtlDigiHitsValidation.cc
+>> Compiling edm plugin src/Validation/MtdValidation/plugins/BtlLocalRecoHarvester.cc
+>> Compiling edm plugin src/Validation/MtdValidation/plugins/BtlLocalRecoValidation.cc
+>> Compiling edm plugin src/Validation/MtdValidation/plugins/BtlSimHitsHarvester.cc
+>> Compiling edm plugin src/Validation/MtdValidation/plugins/BtlSimHitsValidation.cc
+>> Compiling edm plugin src/Validation/MtdValidation/plugins/EtlDigiHitsValidation.cc
+>> Compiling edm plugin src/Validation/MtdValidation/plugins/EtlLocalRecoValidation.cc
+>> Compiling edm plugin src/Validation/MtdValidation/plugins/EtlSimHitsValidation.cc
+>> Compiling edm plugin src/Validation/MtdValidation/plugins/MtdEleIsoHarvester.cc
+>> Compiling edm plugin src/Validation/MtdValidation/plugins/MtdEleIsoValidation.cc
+>> Compiling edm plugin src/Validation/MtdValidation/plugins/MtdTracksHarvester.cc
+>> Compiling edm plugin src/Validation/MtdValidation/plugins/MtdTracksValidation.cc
+>> Compiling edm plugin src/Validation/MtdValidation/plugins/Primary4DVertexHarvester.cc
+>> Compiling edm plugin src/Validation/MtdValidation/plugins/Primary4DVertexValidation.cc
+>> Compiling edm plugin src/CommonTools/PileupAlgos/plugins/PuppiPhoton.cc
+>> Compiling edm plugin src/CommonTools/PileupAlgos/plugins/PuppiProducer.cc
+>> Compiling edm plugin src/CommonTools/PileupAlgos/plugins/SoftKillerProducer.cc
+>> Compiling edm plugin src/CommonTools/ParticleFlow/plugins/DeltaBetaWeights.cc
+>> Compiling edm plugin src/CommonTools/ParticleFlow/plugins/ElectronIDPFCandidateSelector.cc
+>> Compiling edm plugin src/CommonTools/ParticleFlow/plugins/GenericPFCandidateSelector.cc
+>> Compiling edm plugin src/CommonTools/ParticleFlow/plugins/GenericPFJetSelector.cc
+>> Compiling edm plugin src/CommonTools/ParticleFlow/plugins/IPCutPFCandidateSelector.cc
+>> Compiling edm plugin src/CommonTools/ParticleFlow/plugins/IsolatedPFCandidateMerger.cc
+>> Compiling edm plugin src/CommonTools/ParticleFlow/plugins/IsolatedPFCandidateSelector.cc
+>> Compiling edm plugin src/CommonTools/ParticleFlow/plugins/MuonIDPFCandidateSelector.cc
+>> Compiling edm plugin src/CommonTools/ParticleFlow/plugins/PFCandIsolatorFromDeposit.cc
+>> Compiling edm plugin src/CommonTools/ParticleFlow/plugins/PFCandWithSuperClusterExtractor.cc
+>> Compiling edm plugin src/CommonTools/ParticleFlow/plugins/PFCandidateFromFwdPtrProducer.cc
+>> Compiling edm plugin src/CommonTools/ParticleFlow/plugins/PFCandidateFwdPtrCollectionFilter.cc
+>> Compiling edm plugin src/CommonTools/ParticleFlow/plugins/PFCandidateMuonUntagger.cc
+>> Compiling edm plugin src/CommonTools/ParticleFlow/plugins/PFCandidateRecalibrator.cc
+>> Compiling edm plugin src/CommonTools/ParticleFlow/plugins/PFEGammaToCandidateRemapper.cc
+>> Compiling edm plugin src/CommonTools/ParticleFlow/plugins/PFJetFwdPtrProducer.cc
+>> Compiling edm plugin src/CommonTools/ParticleFlow/plugins/PFMET.cc
+>> Compiling edm plugin src/CommonTools/ParticleFlow/plugins/PFMuonUntagger.cc
+>> Compiling edm plugin src/CommonTools/ParticleFlow/plugins/PFPileUp.cc
+>> Compiling edm plugin src/CommonTools/ParticleFlow/plugins/PFTauFwdPtrProducer.cc
+>> Compiling edm plugin src/CommonTools/ParticleFlow/plugins/PdgIdPFCandidateSelector.cc
+>> Compiling edm plugin src/CommonTools/ParticleFlow/plugins/PtMinPFCandidateSelector.cc
+>> Compiling edm plugin src/CommonTools/ParticleFlow/plugins/TopProjector.cc
+>> Building shared library tmp/el9_amd64_gcc12/src/PhysicsTools/PatAlgos/src/PhysicsToolsPatAlgos/libPhysicsToolsPatAlgos.so
+>> Building edm plugin tmp/el9_amd64_gcc12/src/PhysicsTools/PatAlgos/test/PhysicsToolsPatAlgos_testAnalyzers/libPhysicsToolsPatAlgos_testAnalyzers.so
+>> Building shared library tmp/el9_amd64_gcc12/src/CommonTools/PileupAlgos/src/CommonToolsPileupAlgos/libCommonToolsPileupAlgos.so
+>> Building shared library tmp/el9_amd64_gcc12/src/CommonTools/ParticleFlow/src/CommonToolsParticleFlow/libCommonToolsParticleFlow.so
+>> Building edm plugin tmp/el9_amd64_gcc12/src/CommonTools/ParticleFlow/test/CommonToolsParticleFlowTest/libCommonToolsParticleFlowTest.so
+Copying tmp/el9_amd64_gcc12/src/CommonTools/ParticleFlow/src/CommonToolsParticleFlow/libCommonToolsParticleFlow.so to productstore area:
+>> Building edm plugin tmp/el9_amd64_gcc12/src/Validation/MtdValidation/plugins/ValidationMtdValidationAuto/libValidationMtdValidationAuto.so
+Leaving library rule at src/PhysicsTools/PatAlgos/test
+@@@@ Running EDM write config for PhysicsToolsPatAlgos_testAnalyzers
+--- Registered EDM Plugin: PhysicsToolsPatAlgos_testAnalyzers
+Leaving library rule at CommonTools/ParticleFlow
+Copying tmp/el9_amd64_gcc12/src/CommonTools/PileupAlgos/src/CommonToolsPileupAlgos/libCommonToolsPileupAlgos.so to productstore area:
+Leaving library rule at CommonTools/PileupAlgos
+>> Building edm plugin tmp/el9_amd64_gcc12/src/CommonTools/PileupAlgos/plugins/CommonToolsPileupAlgos_plugins/libCommonToolsPileupAlgos_plugins.so
+Copying tmp/el9_amd64_gcc12/src/PhysicsTools/PatAlgos/src/PhysicsToolsPatAlgos/libPhysicsToolsPatAlgos.so to productstore area:
+Leaving library rule at src/CommonTools/ParticleFlow/test
+@@@@ Running EDM write config for CommonToolsParticleFlowTest
+--- Registered EDM Plugin: CommonToolsParticleFlowTest
+Leaving library rule at PhysicsTools/PatAlgos
+>> Building edm plugin tmp/el9_amd64_gcc12/src/PhysicsTools/PatAlgos/plugins/PhysicsToolsPatAlgos_plugins/libPhysicsToolsPatAlgos_plugins.so
+Leaving library rule at src/CommonTools/PileupAlgos/plugins
+Leaving library rule at src/Validation/MtdValidation/plugins
+>> Building edm plugin tmp/el9_amd64_gcc12/src/CommonTools/ParticleFlow/plugins/CommonToolsParticleFlow_plugins/libCommonToolsParticleFlow_plugins.so
+@@@@ Running EDM write config for CommonToolsPileupAlgos_plugins
+@@@@ Running EDM write config for ValidationMtdValidationAuto
+PuppiProducer
+--- Registered EDM Plugin: CommonToolsPileupAlgos_plugins
+>> Leaving Package CommonTools/PileupAlgos
+vertices4DValid
+Primary4DVertexPostProcessor
+mtdTracksValid
+MtdTracksPostProcessor
+mtdEleIsoValid
+MtdEleIsoPostProcessor
+etlSimHitsValid
+etlLocalRecoValid
+etlDigiHitsDefaultValid
+btlSimHitsValid
+btlSimHitsPostProcessor
+btlLocalRecoValid
+btlLocalRecoPostProcessor
+btlDigiHitsDefaultValid
+>> Package CommonTools/PileupAlgos built
+--- Registered EDM Plugin: ValidationMtdValidationAuto
+>> Leaving Package Validation/MtdValidation
+>> Package Validation/MtdValidation built
+>> Subsystem Validation built
+Leaving library rule at src/CommonTools/ParticleFlow/plugins
+@@@@ Running EDM write config for CommonToolsParticleFlow_plugins
+tppfJetsOnPFCandidates
+tppfCandidatesOnPFCandidates
+tpPileUpPFCandidatesOnPFCandidates
+tpIsolatedPFCandidatesOnPFCandidates
+tppfCandidatesOnPileUpPFCandidates
+tppfTausOnPFJets
+tppfTausOnPFJetsDeltaR
+ptMinPFCandidateSelector
+pdgIdPFCandidateSelector
+pfPileUp
+pfCandidateRecalibrator
+muonIDPFCandidateSelector
+isolatedPFCandidateSelector
+isolatedPFCandidateMerger
+ipCutPFCandidateSelector
+genericPFJetSelector
+genericPFCandidateSelector
+electronIDPFCandidateSelector
+--- Registered EDM Plugin: CommonToolsParticleFlow_plugins
+>> Leaving Package CommonTools/ParticleFlow
+>> Package CommonTools/ParticleFlow built
+>> Subsystem CommonTools built
+Leaving library rule at src/PhysicsTools/PatAlgos/plugins
+@@@@ Running EDM write config for PhysicsToolsPatAlgos_plugins
+packedGenParticlesSignal
+packedPFCandidateTrackChi2
+packedCandidateMuonID
+muonPNetTags
+electronPNetTags
+patTracksToPackedCandidates
+patTauSignalCandidatesProducer
+patTauHybridProducer
+patRefitVertexProducer
+patPuppiJetSpecificProducer
+patPrimaryVertexCleaner
+PATPhotonProducer
+electronsWithUserData
+muonsWithUserData
+photonsWithUserData
+tausWithUserData
+jetsWithUserData
+patElectronSelector
+patMuonSelector
+patTauSelector
+patPhotonSelector
+PATJetSelector
+patmetSelector
+patpfParticleSelector
+patCompositeCandidateSelector
+patTriggerObjectStandAloneSelector
+patGenericParticleSelector
+patPackedCandidateSelector
+patPackedCandidatePtrSelector
+patPackedGenParticlePtrSelector
+patElectronRefSelector
+patMuonRefSelector
+patTauRefSelector
+patPhotonRefSelector
+patJetRefSelector
+patmetRefSelector
+patpfParticleRefSelector
+patGenericParticleRefSelector
+patCompositeCandidateRefSelector
+isoTrackSelector
+muonRefPatCount
+patCandViewCountFilter
+patObjectCrossLinker
+mergedMuonsNoCuts
+patElectronTimeLifeInfoProducer
+patMuonTimeLifeInfoProducer
+patTauTimeLifeInfoProducer
+PATJetUpdater
+PATJetProducer
+PATElectronProducer
+lowPtGsfLinksDefault
+electronsUpdated
+muonsUpdated
+muonTagInfos
+electronTagInfos
+JetCorrFactorsProducer
+slimmedJPTJets
+filteredDisplacedMuons
+deDxEstimatorRekeyer
+JetBaseMVAValueMapProducer
+MuonBaseMVAValueMapProducer
+EleBaseMVAValueMapProducer
+--- Registered EDM Plugin: PhysicsToolsPatAlgos_plugins
+>> Leaving Package PhysicsTools/PatAlgos
+>> Package PhysicsTools/PatAlgos built
+>> Subsystem PhysicsTools built
+gmake[1]: Entering directory '/afs/cern.ch/work/m/mrkim/2025Mar26_PUPPITEST/CMSSW_15_0_0'
+>> Local Products Rules ..... started
+gmake: *** [src/MyAnalysis/JetTreeProducer/src contains only BuildFile.xml without any sources. Better to remove BuildFile.xml too or do not tag this directory] Error 1
+>> Local Products Rules ..... done
+@@@@ Refreshing Plugins:edmPluginRefresh for lib/el9_amd64_gcc12
+>> Creating project symlinks
+>> Done python_symlink
+>> Compiling python3 modules cfipython/el9_amd64_gcc12
+>> Compiling python3 modules python
+>> Compiling python3 modules src/CommonTools/PileupAlgos/python
+>> Compiling python3 modules src/MyAnalysis/JetTreeProducer/python
+>> Compiling python3 modules src/PhysicsTools/PatAlgos/python
+>> Compiling python3 modules src/CommonTools/ParticleFlow/python
+>> Compiling python3 modules src/Validation/MtdValidation/python
+>> Done generating edm plugin poisoned information
+>> Plugins of all types refreshed.
+>> All python modules compiled
+gmake[1]: Leaving directory '/afs/cern.ch/work/m/mrkim/2025Mar26_PUPPITEST/CMSSW_15_0_0'

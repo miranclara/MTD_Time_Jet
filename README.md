@@ -1,8 +1,9 @@
 ## Installation Instructions
 
-### Step 1: Set up the CMSSW environment
+
 
 ```bash
+### Step 1: Set up the CMSSW environment
 cmsrel CMSSW_15_0_0
 cd CMSSW_15_0_0/src
 cmsenv

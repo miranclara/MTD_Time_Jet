@@ -1,0 +1,9 @@
+# Ignore root file
+jetTree.root
+
+# Ignore swap files
+*.swp
+
+# Ignore test root file
+MyAnalysis/JetTreeProducer/test/jetTree.root
+

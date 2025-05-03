@@ -3,6 +3,10 @@
 <use name="CommonTools/UtilAlgos"/>
 <use name="FWCore/ServiceRegistry"/>
 <use name="DataFormats/PatCandidates"/>
-
+<use name="DataFormats/VertexReco"/>
+<use name="hepmc"/>
+<use name="SimDataFormats/GeneratorProducts"/>
+<use name="DataFormats/BeamSpot"/>
+<use name="DataFormats/Math"/>
 
 <flags EDM_PLUGIN="1"/>

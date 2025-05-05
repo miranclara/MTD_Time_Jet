@@ -13,13 +13,25 @@
 #include "DataFormats/BeamSpot/interface/BeamSpot.h"
 //#include "DataFormats/Math/interface/XYZPointF.h"
 #include "DataFormats/GeometryVector/interface/GlobalPoint.h"
+#include "DataFormats/HepMCCandidate/interface/GenParticle.h"
 //#include "DataFormats/HepMCCandidate/interface/HepMCProduct.h"
 #include "SimDataFormats/GeneratorProducts/interface/HepMCProduct.h"
+
 
 #include "TTree.h"
 #include "TFile.h"
 
 #include <memory>
+
+struct PrimaryVertex {
+    float x;
+    float y;
+    float z;
+    float t;
+    float chi2;
+    float ndof;
+    int nTracks;
+};
 
 class JetTreeProducer : public edm::one::EDAnalyzer<edm::one::SharedResources> {
 public:
@@ -38,7 +50,8 @@ private:
   // Add tokens for primary vertex, beam spot, and generated particles
   edm::EDGetTokenT<std::vector<reco::Vertex>> pvsToken_;
   edm::EDGetTokenT<reco::BeamSpot> bsToken_;
-  edm::EDGetTokenT<math::XYZPointF> genpToken_;
+  //edm::EDGetTokenT<math::XYZPointF> genpToken_;
+  edm::EDGetTokenT<std::vector<reco::GenParticle>> genParticlesToken_;
   edm::EDGetTokenT<edm::HepMCProduct> genvertexToken_;
   
   // --  Output tree
@@ -47,10 +60,13 @@ private:
   TTree* tree_;
   
   float pt_, eta_, phi_, mass_;
-  float pvs_x_, pvs_y_, pvs_z_; // For primary vertex position
+  float pvs_x_, pvs_y_, pvs_z_,pvs_t_; // For primary vertex position
   float beamspot_x_, beamspot_y_, beamspot_z_; // For beam spot position
-  float genparticles_z_; // For generated particles z-position
-  float genvertex_z_; // For generated vertex z-position
+//  float genparticles_z_; // For generated particles z-position
+  std::vector<float> genparticles_z_;
+  float genvertex_z_;
+
+
 };
 
 JetTreeProducer::JetTreeProducer(const edm::ParameterSet& iConfig)//:
@@ -58,10 +74,13 @@ JetTreeProducer::JetTreeProducer(const edm::ParameterSet& iConfig)//:
   jetsToken_ = consumes<std::vector<pat::Jet>>(iConfig.getParameter<edm::InputTag>("jetTag"));
 
   // Initialize new tokens for primary vertex, beam spot, and generated particles
+
   pvsToken_ = consumes<std::vector<reco::Vertex>>(iConfig.getParameter<edm::InputTag>("pvTag"));
   bsToken_ = consumes<reco::BeamSpot>(edm::InputTag("offlineBeamSpot"));
-  genpToken_ = consumes<math::XYZPointF>(edm::InputTag("genParticles:xyz0"));
+//  genpToken_ = consumes<math::XYZPointF>(iConfig.getParameter<edm::InputTag>("genParticlesTag"));
+  genParticlesToken_ = consumes<std::vector<reco::GenParticle>>(iConfig.getParameter<edm::InputTag>("genParticlesTag"));
   genvertexToken_ = consumes<edm::HepMCProduct>(edm::InputTag("generatorSmeared"));
+
 }
 
 void JetTreeProducer::beginJob() {
@@ -76,12 +95,13 @@ void JetTreeProducer::beginJob() {
   tree_->Branch("pvs_x", &pvs_x_, "pvs_x/F");
   tree_->Branch("pvs_y", &pvs_y_, "pvs_y/F");
   tree_->Branch("pvs_z", &pvs_z_, "pvs_z/F");
+  tree_->Branch("pvs_t", &pvs_t_, "pvs_t/F");
   // Branches for beam spot
   tree_->Branch("beamspot_x", &beamspot_x_, "beamspot_x/F");
   tree_->Branch("beamspot_y", &beamspot_y_, "beamspot_y/F");
   tree_->Branch("beamspot_z", &beamspot_z_, "beamspot_z/F");
   // Branches for generated particles
-  tree_->Branch("genparticles_z", &genparticles_z_, "genparticles_z/F");
+  tree_->Branch("genparticles_z", &genparticles_z_);
   tree_->Branch("genvertex_z", &genvertex_z_, "genvertex_z/F");
 }
 
@@ -90,14 +110,19 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   iEvent.getByToken(jetsToken_, jets);
 
   // Retrieve primary vertices, beam spot, and generated particles
-  edm::Handle<std::vector<reco::Vertex>> pvs;
-  iEvent.getByToken(pvsToken_, pvs);
-
+  std::vector<reco::Vertex> reco_pvs;
+  edm::Handle<std::vector<reco::Vertex>> pv_handle;
+  iEvent.getByToken(pvsToken_, pv_handle); 
+  if (pv_handle.isValid()) {
+    reco_pvs = *pv_handle;
+  }
   edm::Handle<reco::BeamSpot> beamspot;
   iEvent.getByToken(bsToken_, beamspot);
 
-  edm::Handle<math::XYZPointF> genp;
-  iEvent.getByToken(genpToken_, genp);
+//  edm::Handle<math::XYZPointF> genp;
+//  iEvent.getByToken(genpToken_, genp);
+   edm::Handle<std::vector<reco::GenParticle>> genp;
+   iEvent.getByToken(genParticlesToken_, genp);
 
   edm::Handle<edm::HepMCProduct> genvertex;
   iEvent.getByToken(genvertexToken_, genvertex);
@@ -151,11 +176,27 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
 
   }//End of for (const auto& jet : *jets)
 
-  // Fill primary vertex information (taking the first vertex if available)
-  if (!pvs->empty()) {
-    pvs_x_ = pvs->front().x();
-    pvs_y_ = pvs->front().y();
-    pvs_z_ = pvs->front().z();
+    //Store all primary vertices in a vector
+    std::vector<PrimaryVertex> primaryVertices;
+    for (const auto& vtx:reco_pvs) {
+        PrimaryVertex pv;
+        pv.x = vtx.x();
+        pv.y = vtx.y();
+        pv.z = vtx.z();
+        pv.t = vtx.t();
+        pv.chi2 = vtx.chi2();
+        pv.ndof = vtx.ndof();
+        pv.nTracks = vtx.nTracks();
+        primaryVertices.push_back(pv);
+   }
+  //If available, store the first vertex into the flat tree variables
+  if (!reco_pvs.empty()) {
+          const reco::Vertex& firstPV = reco_pvs[0];
+          pvs_x_ = firstPV.x();
+          pvs_y_ = firstPV.y();
+          pvs_z_ = firstPV.z();
+          pvs_t_ = firstPV.t();
+    
   }
   // Fill beam spot information
   if (beamspot.isValid()) {
@@ -165,8 +206,10 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   }
 
   // Fill generated particle z-position
-  if (genp.isValid()) {
-    genparticles_z_ = genp->z();
+  if ( genp.isValid()) {
+    for (const auto& particle : *genp) {
+        genparticles_z_.push_back(particle.vz());  // vz() gives the z vertex position
+    }//    genparticles_z_ = genp->z();
   }
 
   // Fill generated vertex z-position

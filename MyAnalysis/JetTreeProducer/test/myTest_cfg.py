@@ -15,7 +15,7 @@ process.source = cms.Source("PoolSource",
 
 # Max events
 process.maxEvents = cms.untracked.PSet(
-    input = cms.untracked.int32(10)  # process all events(-1)
+    input = cms.untracked.int32(-1)  # process all events(-1)
 )
 
 # iJetTreeProducer configuration
@@ -28,7 +28,8 @@ process.jetTree = cms.EDAnalyzer("JetTreeProducer",
     #Beam spot input tag
     bsTag = cms.InputTag("offlineBeamSpot"),
     # Generated particles input tag (z-position)
-    genParticlesTag = cms.InputTag("genParticles:xyz0"),
+#    genParticlesTag = cms.InputTag("genParticles:xyz0"),
+    genParticlesTag = cms.InputTag("genParticles"),
     # Generated vertex input tag
     genVertexTag = cms.InputTag("generatorSmeared")
 )

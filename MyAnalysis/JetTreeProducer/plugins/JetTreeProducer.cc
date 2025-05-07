@@ -16,7 +16,8 @@
 #include "DataFormats/HepMCCandidate/interface/GenParticle.h"
 //#include "DataFormats/HepMCCandidate/interface/HepMCProduct.h"
 #include "SimDataFormats/GeneratorProducts/interface/HepMCProduct.h"
-
+#include "DataFormats/PatCandidates/interface/PackedCandidate.h"
+#include "DataFormats/ParticleFlowCandidate/interface/PFCandidate.h"
 
 #include "TTree.h"
 #include "TFile.h"
@@ -33,6 +34,11 @@ struct PrimaryVertex {
     int nTracks;
 };
 
+struct PFParticle {
+        float pt, eta, phi, energy, charge, puppiWeight, puppiWeightNoLep, dzSig, time;
+        enum EParticleID { eX, eH, eE, eMu, eGamma, eH0, eH_HF, eEgamma_HF } particleID;
+};
+
 class JetTreeProducer : public edm::one::EDAnalyzer<edm::one::SharedResources> {
 public:
   explicit JetTreeProducer(const edm::ParameterSet&);
@@ -47,7 +53,8 @@ private:
   
   edm::EDGetTokenT<std::vector<pat::Jet>> jetsToken_;
 
-  // Add tokens for primary vertex, beam spot, and generated particles
+  // Add tokens for packedCandidate, primary vertex, beam spot, and generateid particles
+  edm::EDGetTokenT<std::vector<pat::PackedCandidate>> pf_collection_token;
   edm::EDGetTokenT<std::vector<reco::Vertex>> pvsToken_;
   edm::EDGetTokenT<reco::BeamSpot> bsToken_;
   //edm::EDGetTokenT<math::XYZPointF> genpToken_;
@@ -56,10 +63,13 @@ private:
   
   // --  Output tree
   edm::Service<TFileService> fs_;
-  
+  bool doAllPFParticles;
+
   TTree* tree_;
   
-  float pt_, eta_, phi_, mass_;
+//std::vector<float> jet_pt;
+  float pt_, eta_, phi_, mass_;//For jet collection
+  std::vector<PFParticle> pfparticles;//For PackedCandidate
   float pvs_x_, pvs_y_, pvs_z_,pvs_t_; // For primary vertex position
   float beamspot_x_, beamspot_y_, beamspot_z_; // For beam spot position
 //  float genparticles_z_; // For generated particles z-position
@@ -70,11 +80,12 @@ private:
 };
 
 JetTreeProducer::JetTreeProducer(const edm::ParameterSet& iConfig)//:
+	: doAllPFParticles(iConfig.getParameter<bool>("doAllPFParticles"))
 {
   jetsToken_ = consumes<std::vector<pat::Jet>>(iConfig.getParameter<edm::InputTag>("jetTag"));
 
-  // Initialize new tokens for primary vertex, beam spot, and generated particles
-
+  // Initialize new tokens for packedCandidate primary vertex, beam spot, and generated particles
+  pf_collection_token = consumes<std::vector<pat::PackedCandidate>>(iConfig.getParameter<edm::InputTag>("pf_collection_source"));
   pvsToken_ = consumes<std::vector<reco::Vertex>>(iConfig.getParameter<edm::InputTag>("pvTag"));
   bsToken_ = consumes<reco::BeamSpot>(edm::InputTag("offlineBeamSpot"));
 //  genpToken_ = consumes<math::XYZPointF>(iConfig.getParameter<edm::InputTag>("genParticlesTag"));
@@ -91,6 +102,10 @@ void JetTreeProducer::beginJob() {
   tree_->Branch("eta", &eta_, "eta/F");
   tree_->Branch("phi", &phi_, "phi/F");
   tree_->Branch("mass", &mass_, "mass/F");
+
+  // Branches for packedCandidate
+  tree_->Branch("PFParticles", &pfparticles);
+
   // Branches for primary vertex
   tree_->Branch("pvs_x", &pvs_x_, "pvs_x/F");
   tree_->Branch("pvs_y", &pvs_y_, "pvs_y/F");
@@ -106,10 +121,13 @@ void JetTreeProducer::beginJob() {
 }
 
 void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) {
+  pfparticles.clear();
+  genparticles_z_.clear();
   edm::Handle<std::vector<pat::Jet>> jets;
   iEvent.getByToken(jetsToken_, jets);
 
-  // Retrieve primary vertices, beam spot, and generated particles
+  // Retrieve  PackedCandidates,primary vertices, beam spot, and generated particles
+ 
   std::vector<reco::Vertex> reco_pvs;
   edm::Handle<std::vector<reco::Vertex>> pv_handle;
   iEvent.getByToken(pvsToken_, pv_handle); 
@@ -176,7 +194,49 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
 
   }//End of for (const auto& jet : *jets)
 
-    //Store all primary vertices in a vector
+  //Storee PackedCandidates
+    if (doAllPFParticles) {
+        edm::Handle<std::vector<pat::PackedCandidate>> pfColl_handle;
+        iEvent.getByToken(pf_collection_token, pfColl_handle);
+
+        const auto& pf_coll = *(pfColl_handle.product());
+
+        for (const auto& pf : pf_coll) {
+            PFParticle part;
+            part.pt = pf.pt();
+            part.eta = pf.eta();
+            part.phi = pf.phi();
+            part.energy = pf.energy();
+            part.charge = pf.charge();
+            part.puppiWeight = pf.puppiWeight();
+            part.puppiWeightNoLep = pf.puppiWeightNoLep();
+
+            if (pf.hasTrackDetails()) {
+                part.dzSig = pf.dz() / pf.dzError();
+                part.time = pf.time();
+            } else {
+                part.dzSig = 0;
+                part.time = 0;
+            }
+
+            reco::PFCandidate reco_pf;
+            switch (reco_pf.translatePdgIdToType(pf.pdgId())) {
+                case reco::PFCandidate::X: part.particleID = PFParticle::eX; break;
+                case reco::PFCandidate::h: part.particleID = PFParticle::eH; break;
+                case reco::PFCandidate::e: part.particleID = PFParticle::eE; break;
+                case reco::PFCandidate::mu: part.particleID = PFParticle::eMu; break;
+                case reco::PFCandidate::gamma: part.particleID = PFParticle::eGamma; break;
+                case reco::PFCandidate::h0: part.particleID = PFParticle::eH0; break;
+                case reco::PFCandidate::h_HF: part.particleID = PFParticle::eH_HF; break;
+                case reco::PFCandidate::egamma_HF: part.particleID = PFParticle::eEgamma_HF; break;
+                default: part.particleID = PFParticle::eX; break;
+            }
+
+            pfparticles.push_back(part);
+        }
+    }
+  
+  //Store all primary vertices in a vector
     std::vector<PrimaryVertex> primaryVertices;
     for (const auto& vtx:reco_pvs) {
         PrimaryVertex pv;

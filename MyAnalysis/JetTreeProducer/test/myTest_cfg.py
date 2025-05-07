@@ -15,13 +15,15 @@ process.source = cms.Source("PoolSource",
 
 # Max events
 process.maxEvents = cms.untracked.PSet(
-    input = cms.untracked.int32(-1)  # process all events(-1)
+    input = cms.untracked.int32(10)  # process all events(-1)
 )
 
 # iJetTreeProducer configuration
 process.jetTree = cms.EDAnalyzer("JetTreeProducer",
     #Jets input tag
     jetTag = cms.InputTag("slimmedJetsPuppi"),
+    # New: PackedCandidate collection (PF candidates)
+    pf_collection_source = cms.InputTag("packedPFCandidates"),
     #Primary vertex input tag
 #    pvTag = cms.InputTag("offlinePrimaryVertices"),#RECO/AOD 
     pvTag = cms.InputTag('offlineSlimmedPrimaryVertices'),#MINIAOD
@@ -31,7 +33,9 @@ process.jetTree = cms.EDAnalyzer("JetTreeProducer",
 #    genParticlesTag = cms.InputTag("genParticles:xyz0"),
     genParticlesTag = cms.InputTag("genParticles"),
     # Generated vertex input tag
-    genVertexTag = cms.InputTag("generatorSmeared")
+    genVertexTag = cms.InputTag("generatorSmeared"),
+    # New: Enable PFParticle processing
+    doAllPFParticles = cms.bool(True)
 )
 
     #Allow fallback to continue processing

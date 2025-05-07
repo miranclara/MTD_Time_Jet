@@ -8,5 +8,9 @@
 <use name="SimDataFormats/GeneratorProducts"/>
 <use name="DataFormats/BeamSpot"/>
 <use name="DataFormats/Math"/>
+<use name="rootrflx"/>
+<flags EDM_PLUGIN="1"/>
+<flags CPPDEFINES="ROOT_IO"/>
+
 
 <flags EDM_PLUGIN="1"/>

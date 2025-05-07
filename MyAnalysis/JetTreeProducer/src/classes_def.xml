@@ -1,0 +1,4 @@
+<lcgdict>
+  <class name="PFParticle"/>
+  <class name="std::vector<PFParticle>"/>
+</lcgdict>

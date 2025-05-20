@@ -1,0 +1,15 @@
+<use name="FWCore/Framework"/>
+<use name="FWCore/ServiceRegistry"/>
+<use name="FWCore/ParameterSet"/>
+<use name="CommonTools/UtilAlgos"/>
+<use name="DataFormats/PatCandidates"/>
+<use name="DataFormats/VertexReco"/>
+<use name="DataFormats/BeamSpot"/>
+<use name="SimDataFormats/GeneratorProducts"/>
+<use name="DataFormats/ParticleFlowCandidate"/>
+<use name="MyAnalysis/JetTreeProducer"/>
+
+<library file="JetTreeProducer.cc" name="JetTreeProducerPlugin">
+  <flags EDM_PLUGIN="1"/>
+</library>
+

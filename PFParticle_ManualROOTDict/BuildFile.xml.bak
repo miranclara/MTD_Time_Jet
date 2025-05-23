@@ -1,0 +1,6 @@
+<use name="rootcore"/>
+<export>
+  <lib name="libPFParticle_ManualROOTDict"/>
+</export>
+<library file="classes_def.xml classes.h" name="PFParticle_ManualROOTDict"/>
+

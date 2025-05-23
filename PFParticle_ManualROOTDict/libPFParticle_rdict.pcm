@@ -1,0 +1,8 @@
+{ decls }
+namespace std {  }
+
+[ libPFParticle.so ]
+# List of selected classes
+class PFParticle
+class vector<PFParticle>
+header PFParticle.h

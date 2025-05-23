@@ -18,11 +18,13 @@
 #include "SimDataFormats/GeneratorProducts/interface/HepMCProduct.h"
 #include "DataFormats/PatCandidates/interface/PackedCandidate.h"
 #include "DataFormats/ParticleFlowCandidate/interface/PFCandidate.h"
-#include "MyAnalysis/JetTreeProducer/interface/PFParticle.h"
+//#include "MyAnalysis/JetTreeProducer/interface/PFParticle.h"
+#include "PFParticle.h"
 
 
 #include "TTree.h"
 #include "TFile.h"
+#include "TSystem.h"
 
 #include <memory>
 
@@ -99,7 +101,7 @@ JetTreeProducer::JetTreeProducer(const edm::ParameterSet& iConfig)//:
 }
 
 void JetTreeProducer::beginJob() {
-  
+  gSystem->Load("libPFParticle.so");  
   tree_ = fs_->make<TTree>("JetTree", "JetTree");
    // Branches for jet kinematics 
   tree_->Branch("pt", &pt_, "pt/F");

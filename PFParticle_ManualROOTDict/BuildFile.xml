@@ -1,0 +1,8 @@
+<use name="root"/>
+
+<export>
+  <lib name="libPFParticle"/>
+</export>
+
+<library file="classes_def.xml classes.h" name="libPFParticle"/>
+

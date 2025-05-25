@@ -7,25 +7,27 @@ LDFLAGS       = -shared $(ROOTLDFLAGS)
 DICT_SRC      = src/PFParticleDict.cxx
 DICT_HDRS     = PFParticle.h
 DICT_LINKDEF  = LinkDef.h
+DICT_PCM      = libPFParticle_rdict.pcm  # 👈 match ROOT expectation
 
-all: libPFParticle.so
+all: libPFParticle.so $(DICT_PCM)
 
-libPFParticle.so: src/PFParticle.cc $(DICT_SRC)
-	$(CXX) $(CXXFLAGS) -c src/PFParticle.cc -o src/PFParticle.o
-	$(CXX) $(CXXFLAGS) -c $(DICT_SRC) -o src/PFParticleDict.o
-	$(CXX) $(LDFLAGS) -o $@ src/PFParticle.o src/PFParticleDict.o
+libPFParticle.so: src/PFParticle.o src/PFParticleDict.o
+	$(CXX) $(LDFLAGS) -o $@ $^
 
-$(DICT_SRC): include/$(DICT_HDRS) include/$(DICT_LINKDEF)
-	@echo "Generating ROOT dictionary with rootcling..."
+src/PFParticle.o: src/PFParticle.cc
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+src/PFParticleDict.o: $(DICT_SRC)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(DICT_SRC) $(DICT_PCM): include/$(DICT_HDRS) include/$(DICT_LINKDEF)
+	@echo "📦 Generating ROOT dictionary and PCM..."
 	rootcling -f $(DICT_SRC) \
 	  -s libPFParticle.so \
+	  -rmf $(DICT_PCM) \
 	  -rml libPFParticle.so \
-	  -rmf PFParticleDict_rdict.pcm \
 	  -c -Iinclude include/$(DICT_HDRS) include/$(DICT_LINKDEF)
-	@echo "Patching include path in generated dictionary..."
-	sed -i 's#include "include/PFParticle.h"#include "PFParticle.h"#' $(DICT_SRC)
-	
+
 clean:
-	@echo "Cleaning build artifacts..."
 	rm -f src/*.o src/PFParticleDict.* libPFParticle.so *.pcm
 

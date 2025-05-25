@@ -1,4 +1,0 @@
-[ libPFParticle.so ]
-# List of selected classes
-class PFParticle
-header PFParticle.h

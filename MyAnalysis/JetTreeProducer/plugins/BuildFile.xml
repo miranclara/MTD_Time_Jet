@@ -1,15 +1,19 @@
 <use name="FWCore/Framework"/>
-<use name="FWCore/ServiceRegistry"/>
 <use name="FWCore/ParameterSet"/>
 <use name="CommonTools/UtilAlgos"/>
+<use name="CommonTools/CandAlgos"/>
+<use name="DataFormats/JetReco"/>
 <use name="DataFormats/PatCandidates"/>
-<use name="DataFormats/VertexReco"/>
-<use name="DataFormats/BeamSpot"/>
 <use name="SimDataFormats/GeneratorProducts"/>
-<use name="DataFormats/ParticleFlowCandidate"/>
-<use name="MyAnalysis/JetTreeProducer"/>
+<use name="HepMC"/>
+<use name="root"/>
 
-<library file="JetTreeProducer.cc" name="JetTreeProducerPlugin">
-  <flags EDM_PLUGIN="1"/>
-</library>
+<!-- Include the PFParticle header path manually -->
+<flags CXXFLAGS="-I$(CMSSW_BASE)/src/PFParticle_ManualROOTDict/include"/>
+
+<!-- Link against the manually built library -->
+<flags LDFLAGS="-L$(CMSSW_BASE)/lib/$(SCRAM_ARCH) -lPFParticle"/>
+
+<flags EDM_PLUGIN="1"/>
+<library file="JetTreeProducer.cc"/>
 

@@ -34,10 +34,6 @@ struct PrimaryVertex {
     int nTracks;
 };
 
-struct PFParticle {
-        float pt, eta, phi, energy, charge, puppiWeight, puppiWeightNoLep, dzSig, time;
-        enum EParticleID { eX, eH, eE, eMu, eGamma, eH0, eH_HF, eEgamma_HF } particleID;
-};
 
 class JetTreeProducer : public edm::one::EDAnalyzer<edm::one::SharedResources> {
 public:
@@ -62,25 +58,26 @@ private:
   edm::EDGetTokenT<edm::HepMCProduct> genvertexToken_;
   
   // --  Output tree
-  edm::Service<TFileService> fs_;
-  bool doAllPFParticles;
+//  bool doAllPFParticles;
 
   TTree* tree_;
-  
+ 
 //std::vector<float> jet_pt;
   float pt_, eta_, phi_, mass_;//For jet collection
-  std::vector<PFParticle> pfparticles;//For PackedCandidate
+//  std::vector<PFParticle> pfparticles;//For PackedCandidate
   float pvs_x_, pvs_y_, pvs_z_,pvs_t_; // For primary vertex position
   float beamspot_x_, beamspot_y_, beamspot_z_; // For beam spot position
 //  float genparticles_z_; // For generated particles z-position
   std::vector<float> genparticles_z_;
   float genvertex_z_;
-
+  float pf_vertex,pf_pt, pf_eta, pf_phi, pf_energy,pf_charge,pf_puppiWeight,pf_puppiWeightNoLep,pf_dxy,pf_dz,pf_dzError,pf_dzSig,pf_time,pf_timeError;//For <pat::PackedCandidate> collection
+  float pf_vx, pf_vy, pf_vz;//For <pat::PackedCandidate> collection
+  int pf_pdgId,pf_isTimeValid;//For <pat::PackedCandidate> collection
 
 };
 
 JetTreeProducer::JetTreeProducer(const edm::ParameterSet& iConfig)//:
-	: doAllPFParticles(iConfig.getParameter<bool>("doAllPFParticles"))
+//	: doAllPFParticles(iConfig.getParameter<bool>("doAllPFParticles"))
 {
   jetsToken_ = consumes<std::vector<pat::Jet>>(iConfig.getParameter<edm::InputTag>("jetTag"));
 
@@ -91,12 +88,13 @@ JetTreeProducer::JetTreeProducer(const edm::ParameterSet& iConfig)//:
 //  genpToken_ = consumes<math::XYZPointF>(iConfig.getParameter<edm::InputTag>("genParticlesTag"));
   genParticlesToken_ = consumes<std::vector<reco::GenParticle>>(iConfig.getParameter<edm::InputTag>("genParticlesTag"));
   genvertexToken_ = consumes<edm::HepMCProduct>(edm::InputTag("generatorSmeared"));
+  edm::Service<TFileService> fs_;
+  tree_ = fs_->make<TTree>("JetTree", "JetTree");
 
 }
 
 void JetTreeProducer::beginJob() {
   
-  tree_ = fs_->make<TTree>("JetTree", "JetTree");
    // Branches for jet kinematics 
   tree_->Branch("pt", &pt_, "pt/F");
   tree_->Branch("eta", &eta_, "eta/F");
@@ -104,7 +102,7 @@ void JetTreeProducer::beginJob() {
   tree_->Branch("mass", &mass_, "mass/F");
 
   // Branches for packedCandidate
-  tree_->Branch("PFParticles", &pfparticles);
+//  tree_->Branch("PFParticles", &pfparticles);
 
   // Branches for primary vertex
   tree_->Branch("pvs_x", &pvs_x_, "pvs_x/F");
@@ -118,11 +116,30 @@ void JetTreeProducer::beginJob() {
   // Branches for generated particles
   tree_->Branch("genparticles_z", &genparticles_z_);
   tree_->Branch("genvertex_z", &genvertex_z_, "genvertex_z/F");
+
+   // Branches for <pat::PackedCandidate> collection 
+  tree_->Branch("pf_pt", &pf_pt, "pf_pt/F");
+  tree_->Branch("pf_eta", &pf_eta, "pf_eta/F");
+  tree_->Branch("pf_phi", &pf_phi, "pf_phi/F");
+  tree_->Branch("pf_energy", &pf_energy, "pf_energy/F");
+  tree_->Branch("pf_charge", &pf_charge, "pf_charge/F");
+  tree_->Branch("pf_puppiWeight", &pf_puppiWeight, "pf_puppiWeight/F");
+  tree_->Branch("pf_puppiWeightNoLep", &pf_puppiWeightNoLep, "pf_puppiWeightNoLep/F");
+  tree_->Branch("pf_dz", &pf_dz, "pf_dz/F");
+  tree_->Branch("pf_dzError", &pf_dzError, "pf_dzError/F");
+  tree_->Branch("pf_dzSig", &pf_dzSig, "pf_dzSig/F");
+  tree_->Branch("pf_time", &pf_time, "pf_time/F");
+  tree_->Branch("pf_pdgId", &pf_pdgId, "pf_pdgId/I");
+  tree_->Branch("pf_vx", &pf_vx, "pf_vx/F");
+  tree_->Branch("pf_vy", &pf_vy, "pf_vy/F");
+  tree_->Branch("pf_vz", &pf_vz, "pf_vz/F");
 }
 
 void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) {
-  pfparticles.clear();
+//  pfparticles.clear();
   genparticles_z_.clear();
+  std::cout << "Filled genparticles_z_ with " << genparticles_z_.size() << " entries\n";
+
   edm::Handle<std::vector<pat::Jet>> jets;
   iEvent.getByToken(jetsToken_, jets);
 
@@ -145,6 +162,9 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   edm::Handle<edm::HepMCProduct> genvertex;
   iEvent.getByToken(genvertexToken_, genvertex);
 
+  edm::Handle<std::vector<pat::PackedCandidate>> pfColl_handle;
+  iEvent.getByToken(pf_collection_token, pfColl_handle);
+  const auto& pf_coll = *(pfColl_handle.product());
  
   int jetIndex = 0;
   for (const auto& jet : *jets) {
@@ -195,47 +215,38 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   }//End of for (const auto& jet : *jets)
 
   //Storee PackedCandidates
-    if (doAllPFParticles) {
-        edm::Handle<std::vector<pat::PackedCandidate>> pfColl_handle;
-        iEvent.getByToken(pf_collection_token, pfColl_handle);
-
-        const auto& pf_coll = *(pfColl_handle.product());
-
-        for (const auto& pf : pf_coll) {
-            PFParticle part;
-            part.pt = pf.pt();
-            part.eta = pf.eta();
-            part.phi = pf.phi();
-            part.energy = pf.energy();
-            part.charge = pf.charge();
-            part.puppiWeight = pf.puppiWeight();
-            part.puppiWeightNoLep = pf.puppiWeightNoLep();
+   for (const auto& pf : pf_coll) {	
+            pf_pt = pf.pt();
+            pf_eta = pf.eta();
+            pf_phi = pf.phi();
+            pf_energy = pf.energy();
+            pf_charge = pf.charge();
+            pf_puppiWeight = pf.puppiWeight();
+            pf_puppiWeightNoLep = pf.puppiWeightNoLep();
+            pf_pdgId=pf.pdgId();
+	    pf_vx = pf.vertex().x();
+            pf_vy = pf.vertex().y();
+            pf_vz = pf.vertex().z();
 
             if (pf.hasTrackDetails()) {
-                part.dzSig = pf.dz() / pf.dzError();
-                part.time = pf.time();
+                pf_dxy=pf.dxy();
+                pf_dz=pf.dz();
+                pf_dzError=pf.dzError();
+        	pf_dzSig = (pf_dzError > 0) ? pf_dz / pf_dzError : 0;        	
+            	pf_time = pf.time();
+                pf_timeError = pf.timeError();
+		
             } else {
-                part.dzSig = 0;
-                part.time = 0;
+                pf_dxy=0;
+	        pf_dz = 0;
+        	pf_dzError = 1e6;  // avoid division by zero
+                pf_dzSig = 0;
+                pf_time = 0;
+                pf_timeError = 1e6;
             }
-
-            reco::PFCandidate reco_pf;
-            switch (reco_pf.translatePdgIdToType(pf.pdgId())) {
-                case reco::PFCandidate::X: part.particleID = PFParticle::eX; break;
-                case reco::PFCandidate::h: part.particleID = PFParticle::eH; break;
-                case reco::PFCandidate::e: part.particleID = PFParticle::eE; break;
-                case reco::PFCandidate::mu: part.particleID = PFParticle::eMu; break;
-                case reco::PFCandidate::gamma: part.particleID = PFParticle::eGamma; break;
-                case reco::PFCandidate::h0: part.particleID = PFParticle::eH0; break;
-                case reco::PFCandidate::h_HF: part.particleID = PFParticle::eH_HF; break;
-                case reco::PFCandidate::egamma_HF: part.particleID = PFParticle::eEgamma_HF; break;
-                default: part.particleID = PFParticle::eX; break;
-            }
-
-            pfparticles.push_back(part);
-        }
-    }
-  
+     tree_->Fill();  
+   }//End of PackedCandidates 
+   
   //Store all primary vertices in a vector
     std::vector<PrimaryVertex> primaryVertices;
     for (const auto& vtx:reco_pvs) {
@@ -256,13 +267,14 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
           pvs_y_ = firstPV.y();
           pvs_z_ = firstPV.z();
           pvs_t_ = firstPV.t();
-    
+   tree_->Fill(); 
   }
   // Fill beam spot information
   if (beamspot.isValid()) {
     beamspot_x_ = beamspot->x0();
     beamspot_y_ = beamspot->y0();
     beamspot_z_ = beamspot->z0();
+    tree_->Fill();
   }
 
   // Fill generated particle z-position

@@ -8,14 +8,15 @@ process.load("FWCore.MessageService.MessageLogger_cfi")
 # Input source 
 process.source = cms.Source("PoolSource",
 #    fileNames = cms.untracked.vstring('file:patTuple_onlyJets.root')
-    fileNames = cms.untracked.vstring('/store/relval/CMSSW_15_0_0/RelValTTbar_14TeV/MINIAODSIM/PU_141X_mcRun4_realistic_v3_STD_Run4D110_PU-v2/2580000/9c9737ed-bb08-48c5-9f58-ba4bb149c0d7.root')
+#    fileNames = cms.untracked.vstring('/store/relval/CMSSW_15_0_0/RelValTTbar_14TeV/MINIAODSIM/PU_141X_mcRun4_realistic_v3_STD_Run4D110_PU-v2/2580000/9c9737ed-bb08-48c5-9f58-ba4bb149c0d7.root')
+    fileNames = cms.untracked.vstring('/store/mc/Phase2HLTTDRSummer20ReRECOMiniAOD/QCD_Pt_300to470_TuneCP5_14TeV_pythia8/GEN-SIM-DIGI-RAW-MINIAOD/NoPU_111X_mcRun4_realistic_T15_v1-v1/100000/E4BCEE62-D6E4-114B-88C3-E3FF47AAA099.roo')
 )
 #when switching between AOD and MINIAOD
 #process.options.allowUnscheduled = cms.untracked.bool(True)
 
 # Max events
 process.maxEvents = cms.untracked.PSet(
-    input = cms.untracked.int32(10)  # process all events(-1)
+    input = cms.untracked.int32(100)  # process all events(-1)
 )
 
 # iJetTreeProducer configuration
@@ -31,11 +32,10 @@ process.jetTree = cms.EDAnalyzer("JetTreeProducer",
     bsTag = cms.InputTag("offlineBeamSpot"),
     # Generated particles input tag (z-position)
 #    genParticlesTag = cms.InputTag("genParticles:xyz0"),
-    genParticlesTag = cms.InputTag("genParticles"),
+    genParticlesTag = cms.InputTag("prunedGenParticles"),
     # Generated vertex input tag
-    genVertexTag = cms.InputTag("generatorSmeared"),
-    # New: Enable PFParticle processing
-    doAllPFParticles = cms.bool(True)
+    genVertexTag = cms.InputTag("generatorSmeared")
+#    doAllPFParticles = cms.bool(True) 
 )
 
     #Allow fallback to continue processing

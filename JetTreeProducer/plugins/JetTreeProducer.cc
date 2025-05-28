@@ -138,34 +138,66 @@ void JetTreeProducer::beginJob() {
 void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) {
 //  pfparticles.clear();
   genparticles_z_.clear();
-  std::cout << "Filled genparticles_z_ with " << genparticles_z_.size() << " entries\n";
 
+  // Retrieve jet collection
   edm::Handle<std::vector<pat::Jet>> jets;
   iEvent.getByToken(jetsToken_, jets);
 
-  // Retrieve  PackedCandidates,primary vertices, beam spot, and generated particles
- 
+  // Retrieve primary vertex collection
   std::vector<reco::Vertex> reco_pvs;
   edm::Handle<std::vector<reco::Vertex>> pv_handle;
   iEvent.getByToken(pvsToken_, pv_handle); 
   if (pv_handle.isValid()) {
     reco_pvs = *pv_handle;
   }
-  edm::Handle<reco::BeamSpot> beamspot;
-  iEvent.getByToken(bsToken_, beamspot);
 
-//  edm::Handle<math::XYZPointF> genp;
-//  iEvent.getByToken(genpToken_, genp);
-   edm::Handle<std::vector<reco::GenParticle>> genp;
-   iEvent.getByToken(genParticlesToken_, genp);
-
+  // Retrieve gen vertex
   edm::Handle<edm::HepMCProduct> genvertex;
   iEvent.getByToken(genvertexToken_, genvertex);
+  bool hasGenZ = false;
+  if (genvertex.isValid()) {
+    const HepMC::GenEvent* evt = genvertex->GetEvent();
+    if (evt && evt->vertices_size() > 0) {
+      const HepMC::GenVertex* firstVertex = *(evt->vertices_begin());
+      genvertex_z_ = firstVertex->position().z();
+      hasGenZ = true;
+    }
+  }
 
+  // ⛔ Early event rejection if gen vertex is valid and reco_pvs is not empty
+  if (hasGenZ && !reco_pvs.empty()) {
+    double dz_first = std::abs(reco_pvs[0].z() - genvertex_z_);
+    double minDist = dz_first;
+    int closestPVIndex = 0;
+
+    for (size_t i = 1; i < reco_pvs.size(); ++i) {
+      double dz = std::abs(reco_pvs[i].z() - genvertex_z_);
+      if (dz < minDist) {
+        minDist = dz;
+        closestPVIndex = static_cast<int>(i);
+      }
+    }
+
+    if (closestPVIndex != 0) {
+      edm::LogInfo("JetTreeProducer") << "Skipping event: first reco PV is not closest to gen vertex";
+      return; // Early skip
+    }
+  }
+
+  // Retrieve PackedCandidates
   edm::Handle<std::vector<pat::PackedCandidate>> pfColl_handle;
   iEvent.getByToken(pf_collection_token, pfColl_handle);
   const auto& pf_coll = *(pfColl_handle.product());
- 
+
+  // Retrieve beam spot
+  edm::Handle<reco::BeamSpot> beamspot;
+  iEvent.getByToken(bsToken_, beamspot);
+
+  // Retrieve gen particles (optional)
+  edm::Handle<std::vector<reco::GenParticle>> genp;
+  iEvent.getByToken(genParticlesToken_, genp);
+
+  // Fill jets (limit to 5 jets)
   int jetIndex = 0;
   for (const auto& jet : *jets) {
     pt_ = jet.pt();
@@ -174,79 +206,45 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
     mass_ = jet.mass();
     tree_->Fill();
     jetIndex++;
- 	
-   	if (jetIndex >= 5) break;  // limit to first 5 jets
-        std::cout << "==== pat::Jet ====" << std::endl;
-        std::cout << "  pt: " << jet.pt() << std::endl;
-        std::cout << "  eta: " << jet.eta() << std::endl;
-        std::cout << "  phi: " << jet.phi() << std::endl;
-        std::cout << "  mass: " << jet.mass() << std::endl;
-        std::cout << "  energy: " << jet.energy() << std::endl;
-        std::cout << "  jet area: " << jet.jetArea() << std::endl;
-        std::cout << "  charged hadron energy fraction: " << jet.chargedHadronEnergyFraction() << std::endl;
-        std::cout << "  neutral hadron energy fraction: " << jet.neutralHadronEnergyFraction() << std::endl;
-        std::cout << "  photon energy fraction: " << jet.photonEnergyFraction() << std::endl;
-        std::cout << "  electron energy fraction: " << jet.electronEnergyFraction() << std::endl;
+    if (jetIndex >= 5) break;
+  }
 
-        std::cout << "  Number of constituents: " << jet.numberOfDaughters() << std::endl;
-        std::cout << "  Charged multiplicity: " << jet.chargedMultiplicity() << std::endl;
+  // Fill PackedCandidates
+  for (const auto& pf : pf_coll) {
+    pf_pt = pf.pt();
+    pf_eta = pf.eta();
+    pf_phi = pf.phi();
+    pf_energy = pf.energy();
+    pf_charge = pf.charge();
+    pf_puppiWeight = pf.puppiWeight();
+    pf_puppiWeightNoLep = pf.puppiWeightNoLep();
+// vertex is always available, but dz/dzError are not
+    pf_vx = pf.vertex().x();
+    pf_vy = pf.vertex().y();
+    pf_vz = pf.vertex().z();
 
-        // B-tagging discriminators (may vary depending on data tier)
-        if (jet.bDiscriminator("pfDeepCSVDiscriminatorsJetTags:probb"))
-            std::cout << "  DeepCSV probb: " << jet.bDiscriminator("pfDeepCSVDiscriminatorsJetTags:probb") << std::endl;
-	if (jet.hasUserFloat("DeepCSV_b")) {
-        	float score = jet.userFloat("DeepCSV_b");
-            std::cout << "  DeepCSV_b = " << score << std::endl;
-    	}
+    if (pf.hasTrackDetails()) {
+      pf_dxy=pf.dxy();
+      pf_dz=pf.dz();
+      pf_dzError=pf.dzError();
+      pf_dzSig = (pf_dzError > 0) ? pf_dz / pf_dzError : 0;  
+//      pf_dzSig = pf.dz() / pf.dzError();
+      pf_time = pf.time();
+      pf_timeError = pf.timeError();
 
-        if (jet.bDiscriminator("pfDeepFlavourJetTags:probb"))
-            std::cout << "  DeepFlavour probb: " << jet.bDiscriminator("pfDeepFlavourJetTags:probb") << std::endl;
-        // Check for any userFloats (common in MiniAOD)
-        std::vector<std::string> userFloatNames = jet.userFloatNames();
-        for (const auto& name : userFloatNames) {
-            std::cout << "  userFloat(" << name << ") = " << jet.userFloat(name) << std::endl;
-        }
-        std::vector<std::string> userIntNames = jet.userIntNames();
-        for (const auto& name : userIntNames) {
-            std::cout << "  userInt(" << name << ") = " << jet.userInt(name) << std::endl;
-        }
-        std::cout << std::endl;
+    } else {
+      pf_dxy=0;
+      pf_dz = 0;
+      pf_dzError = 1e6;  // avoid division by zero
+      pf_dzSig = 0;
+      pf_time = 0;
+      pf_timeError = 1e6;
+    }
+    
+    pf_pdgId = pf.pdgId();
+    tree_->Fill();
+  }
 
-  }//End of for (const auto& jet : *jets)
-
-  //Storee PackedCandidates
-   for (const auto& pf : pf_coll) {	
-            pf_pt = pf.pt();
-            pf_eta = pf.eta();
-            pf_phi = pf.phi();
-            pf_energy = pf.energy();
-            pf_charge = pf.charge();
-            pf_puppiWeight = pf.puppiWeight();
-            pf_puppiWeightNoLep = pf.puppiWeightNoLep();
-            pf_pdgId=pf.pdgId();
-	    pf_vx = pf.vertex().x();
-            pf_vy = pf.vertex().y();
-            pf_vz = pf.vertex().z();
-
-            if (pf.hasTrackDetails()) {
-                pf_dxy=pf.dxy();
-                pf_dz=pf.dz();
-                pf_dzError=pf.dzError();
-        	pf_dzSig = (pf_dzError > 0) ? pf_dz / pf_dzError : 0;        	
-            	pf_time = pf.time();
-                pf_timeError = pf.timeError();
-		
-            } else {
-                pf_dxy=0;
-	        pf_dz = 0;
-        	pf_dzError = 1e6;  // avoid division by zero
-                pf_dzSig = 0;
-                pf_time = 0;
-                pf_timeError = 1e6;
-            }
-     tree_->Fill();  
-   }//End of PackedCandidates 
-   
   //Store all primary vertices in a vector
     std::vector<PrimaryVertex> primaryVertices;
     for (const auto& vtx:reco_pvs) {
@@ -260,15 +258,17 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
         pv.nTracks = vtx.nTracks();
         primaryVertices.push_back(pv);
    }
-  //If available, store the first vertex into the flat tree variables
+
+  // Fill first primary vertex variables
   if (!reco_pvs.empty()) {
-          const reco::Vertex& firstPV = reco_pvs[0];
-          pvs_x_ = firstPV.x();
-          pvs_y_ = firstPV.y();
-          pvs_z_ = firstPV.z();
-          pvs_t_ = firstPV.t();
-   tree_->Fill(); 
+    const reco::Vertex& firstPV = reco_pvs[0];
+    pvs_x_ = firstPV.x();
+    pvs_y_ = firstPV.y();
+    pvs_z_ = firstPV.z();
+    pvs_t_ = firstPV.t();
+    tree_->Fill();
   }
+
   // Fill beam spot information
   if (beamspot.isValid()) {
     beamspot_x_ = beamspot->x0();
@@ -277,11 +277,11 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
     tree_->Fill();
   }
 
-  // Fill generated particle z-position
-  if ( genp.isValid()) {
+  // Fill generator particle z-positions
+  if (genp.isValid()) {
     for (const auto& particle : *genp) {
-        genparticles_z_.push_back(particle.vz());  // vz() gives the z vertex position
-    }//    genparticles_z_ = genp->z();
+      genparticles_z_.push_back(particle.vz());
+    }
   }
 
   // Fill generated vertex z-position
@@ -293,7 +293,12 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
     }
   }
 
+  // Fill generator vertex z-position (already done above, but now write it to tree)
+  if (hasGenZ) {
+    tree_->Fill();
+  }
 }//End of void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) {
+
 
 void JetTreeProducer::endJob() {
   //file_->cd();

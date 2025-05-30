@@ -31,3 +31,12 @@ scram b clean
 scram b -j 8
 cmsRun MyAnalysis/JetTreeProducer/test/myTest_cfg.py
 
+###Step : Crab submit
+voms-proxy-init --voms cms
+crab submit -c MyAnalysis/JetTreeProducer/test/crab_cfg.py
+# Monitor:
+crab status -d MyAnalysis/JetTreeProducer/test/crab_projects/crab_JetTime_analysis
+# Stream live logs:
+crab tail -d MyAnalysis/JetTreeProducer/test/crab_projects/crab_JetTime_analysis
+# Get outputs when done:
+crab getoutput -d MyAnalysis/JetTreeProducer/test/crab_projects/crab_JetTime_analysis

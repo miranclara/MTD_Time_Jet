@@ -9,8 +9,11 @@
 <use name="DataFormats/BeamSpot"/>
 <use name="DataFormats/Math"/>
 <use name="rootrflx"/>
+<use name="fastjet"/>
+<use name="fastjet-contrib"/> <!-- Optional: needed for plugins like SoftDrop -->
+<export>
+  <lib name="1"/>
+</export>
+
 <flags EDM_PLUGIN="1"/>
 <flags CPPDEFINES="ROOT_IO"/>
-
-
-<flags EDM_PLUGIN="1"/>

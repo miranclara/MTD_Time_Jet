@@ -8,6 +8,12 @@
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 
 #include "DataFormats/PatCandidates/interface/Jet.h"
+#include "DataFormats/JetReco/interface/GenJet.h" 
+#include "DataFormats/Math/interface/deltaR.h"  
+#include "fastjet/ClusterSequence.hh"
+#include "fastjet/PseudoJet.hh"
+#include "DataFormats/JetReco/interface/Jet.h"
+#include "DataFormats/JetReco/interface/JetCollection.h"
 
 #include "DataFormats/VertexReco/interface/Vertex.h"
 #include "DataFormats/BeamSpot/interface/BeamSpot.h"
@@ -21,6 +27,7 @@
 
 #include "TTree.h"
 #include "TFile.h"
+//#include "TFileService.h"
 
 #include <memory>
 
@@ -48,6 +55,7 @@ private:
   void endJob() override;
   
   edm::EDGetTokenT<std::vector<pat::Jet>> jetsToken_;
+  edm::EDGetTokenT<std::vector<reco::GenJet>> genJetToken_;
 
   // Add tokens for packedCandidate, primary vertex, beam spot, and generateid particles
   edm::EDGetTokenT<std::vector<pat::PackedCandidate>> pf_collection_token;
@@ -59,9 +67,19 @@ private:
   
   // --  Output tree
 //  bool doAllPFParticles;
+//  bool isAssigned_tight = (std::abs(dz) < 0.1 && dzsig < 5);
+//  bool isAssigned_loose = (std::abs(dz) < 0.2 && dzsig < 5);
+
 
   TTree* tree_;
- 
+  float jetResponse_;
+  float jetAbsEta_;
+//  float jetResponse_ULv15;
+  float jetResponse_PR_tight_;
+  float jetResponse_PR_loose_;
+//  float jetResponse_4D;
+//  std::vector<PrimaryVertex> primaryVertices;
+
 //std::vector<float> jet_pt;
   float pt_, eta_, phi_, mass_;//For jet collection
 //  std::vector<PFParticle> pfparticles;//For PackedCandidate
@@ -80,7 +98,7 @@ JetTreeProducer::JetTreeProducer(const edm::ParameterSet& iConfig)//:
 //	: doAllPFParticles(iConfig.getParameter<bool>("doAllPFParticles"))
 {
   jetsToken_ = consumes<std::vector<pat::Jet>>(iConfig.getParameter<edm::InputTag>("jetTag"));
-
+  genJetToken_  = consumes<std::vector<reco::GenJet>>(iConfig.getParameter<edm::InputTag>("genJetsTag"));
   // Initialize new tokens for packedCandidate primary vertex, beam spot, and generated particles
   pf_collection_token = consumes<std::vector<pat::PackedCandidate>>(iConfig.getParameter<edm::InputTag>("pf_collection_source"));
   pvsToken_ = consumes<std::vector<reco::Vertex>>(iConfig.getParameter<edm::InputTag>("pvTag"));
@@ -88,13 +106,21 @@ JetTreeProducer::JetTreeProducer(const edm::ParameterSet& iConfig)//:
 //  genpToken_ = consumes<math::XYZPointF>(iConfig.getParameter<edm::InputTag>("genParticlesTag"));
   genParticlesToken_ = consumes<std::vector<reco::GenParticle>>(iConfig.getParameter<edm::InputTag>("genParticlesTag"));
   genvertexToken_ = consumes<edm::HepMCProduct>(edm::InputTag("generatorSmeared"));
-  edm::Service<TFileService> fs_;
-  tree_ = fs_->make<TTree>("JetTree", "JetTree");
 
 }
 
 void JetTreeProducer::beginJob() {
-  
+
+  edm::Service<TFileService> fs_;
+  tree_ = fs_->make<TTree>("JetTree", "JetTree");
+
+  tree_->Branch("jetResponse", &jetResponse_, "jetResponse/F");
+  tree_->Branch("jetAbsEta", &jetAbsEta_, "jetAbsEta/F");  
+  tree_->Branch("jetResponse_PR_tight", &jetResponse_PR_tight_, "jetResponse_PR_tight/F");
+  tree_->Branch("jetResponse_PR_loose", &jetResponse_PR_loose_, "jetResponse_PR_loose/F");
+//  tree_->Branch("primaryVertices", &primaryVertices);
+
+
    // Branches for jet kinematics 
   tree_->Branch("pt", &pt_, "pt/F");
   tree_->Branch("eta", &eta_, "eta/F");
@@ -138,10 +164,17 @@ void JetTreeProducer::beginJob() {
 void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) {
 //  pfparticles.clear();
   genparticles_z_.clear();
-
-  // Retrieve jet collection
+  jetResponse_=-1;
+  jetResponse_PR_tight_ = -1;
+  jetResponse_PR_loose_ = -1;
+  jetAbsEta_ = -1; 
+  
+// Retrieve jet collection
   edm::Handle<std::vector<pat::Jet>> jets;
   iEvent.getByToken(jetsToken_, jets);
+  // Retrieve Genjet collection
+  edm::Handle<std::vector<reco::GenJet>> genJets;
+  iEvent.getByToken(genJetToken_, genJets);
 
   // Retrieve primary vertex collection
   std::vector<reco::Vertex> reco_pvs;
@@ -164,6 +197,7 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
     }
   }
 
+
   // ⛔ Early event rejection if gen vertex is valid and reco_pvs is not empty
   if (hasGenZ && !reco_pvs.empty()) {
     double dz_first = std::abs(reco_pvs[0].z() - genvertex_z_);
@@ -176,13 +210,13 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
         minDist = dz;
         closestPVIndex = static_cast<int>(i);
       }
-    }
+    }//End of for (size_t i = 1; i < reco_pvs.size()
 
     if (closestPVIndex != 0) {
       edm::LogInfo("JetTreeProducer") << "Skipping event: first reco PV is not closest to gen vertex";
       return; // Early skip
     }
-  }
+  }//End of if (hasGenZ && !reco_pvs.empty())
 
   // Retrieve PackedCandidates
   edm::Handle<std::vector<pat::PackedCandidate>> pfColl_handle;
@@ -197,19 +231,40 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   edm::Handle<std::vector<reco::GenParticle>> genp;
   iEvent.getByToken(genParticlesToken_, genp);
 
-  // Fill jets (limit to 5 jets)
+  // Fill jets (limit to leading 5 jets)
   int jetIndex = 0;
   for (const auto& jet : *jets) {
-    pt_ = jet.pt();
-    eta_ = jet.eta();
-    phi_ = jet.phi();
-    mass_ = jet.mass();
-    tree_->Fill();
+
+    const reco::GenJet* matchedGenJet = nullptr;
+    float minDR = 0.3;
+    for (const auto& genJet : *genJets) {
+       float dR = reco::deltaR(jet, genJet);
+       if (dR < minDR) {
+         minDR = dR;
+         matchedGenJet = &genJet;
+      }//End of if (dR < minDR) 
+    }//End of for (const auto& genJet : *genJets)
+ 
+    if (matchedGenJet) {
+      pt_ = jet.pt();
+      eta_ = jet.eta();
+      phi_ = jet.phi();
+      mass_ = jet.mass();
+      jetResponse_ = (matchedGenJet->pt() > 0) ? jet.pt() / matchedGenJet->pt() : -1.0;
+      jetAbsEta_   = std::abs(jet.eta());
+  //    tree_->Fill();  // fill the tree with this matched jet
+    }//End of if (matchedGenJet)
+
     jetIndex++;
-    if (jetIndex >= 5) break;
-  }
+    if (jetIndex >= 5) break;// For the leading 5 jets
+  }//End of for (const auto& jet : *jets)
+
 
   // Fill PackedCandidates
+  std::vector<fastjet::PseudoJet> fjInputs_tight;
+  std::vector<fastjet::PseudoJet> fjInputs_loose;
+//  primaryVertices.clear();
+
   for (const auto& pf : pf_coll) {
     pf_pt = pf.pt();
     pf_eta = pf.eta();
@@ -232,6 +287,16 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
       pf_time = pf.time();
       pf_timeError = pf.timeError();
 
+      fastjet::PseudoJet pj(pf.px(), pf.py(), pf.pz(), pf.energy());
+      pj.set_user_index(0);
+
+      if (std::abs(pf_dz) < 0.1 && pf_dzSig < 5) {
+      fjInputs_tight.push_back(pj);
+      }
+      if (std::abs(pf_dz) < 0.2 && pf_dzSig < 5) {
+      fjInputs_loose.push_back(pj);
+      }
+
     } else {
       pf_dxy=0;
       pf_dz = 0;
@@ -240,9 +305,47 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
       pf_time = 0;
       pf_timeError = 1e6;
     }
-    
+
     pf_pdgId = pf.pdgId();
-    tree_->Fill();
+//    tree_->Fill();
+  }//End of for (const auto& pf : pf_coll)
+
+// Run the jet clustering algorithm on each collection
+  fastjet::JetDefinition jetDef(fastjet::antikt_algorithm, 0.4);
+  auto cs_tight = fastjet::ClusterSequence(fjInputs_tight, jetDef);
+  auto tightJets = fastjet::sorted_by_pt(cs_tight.inclusive_jets(20.0));
+
+  auto cs_loose = fastjet::ClusterSequence(fjInputs_loose, jetDef);
+  auto looseJets = fastjet::sorted_by_pt(cs_loose.inclusive_jets(20.0));
+
+//  jetResponse_PR_tight_ = -1;
+//  jetResponse_PR_loose_ = -1;
+//  jetAbsEta_ = -1; 
+   
+  auto computeResponse = [&](const fastjet::PseudoJet& recoJet) -> float {
+    const reco::GenJet* matchedGenJet = nullptr;
+    float minDR = 0.3;
+    for (const auto& genJet : *genJets) {
+      float dR = reco::deltaR(recoJet.eta(), recoJet.phi(), genJet.eta(), genJet.phi());
+      if (dR < minDR) {
+        minDR = dR;
+        matchedGenJet = &genJet;
+      }
+    }
+    if (matchedGenJet && matchedGenJet->pt() > 0){
+      return recoJet.pt() / matchedGenJet->pt();
+    }
+      return -1;
+  };
+
+  if (!tightJets.empty()) {
+    jetResponse_PR_tight_ = computeResponse(tightJets[0]);
+    jetAbsEta_ = std::abs(tightJets[0].eta());
+   }
+
+  if (!looseJets.empty()) {
+    jetResponse_PR_loose_ = computeResponse(looseJets[0]);
+    if (jetAbsEta_ < 0) jetAbsEta_ = std::abs(looseJets[0].eta());
   }
 
   //Store all primary vertices in a vector
@@ -262,11 +365,12 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   // Fill first primary vertex variables
   if (!reco_pvs.empty()) {
     const reco::Vertex& firstPV = reco_pvs[0];
+
     pvs_x_ = firstPV.x();
     pvs_y_ = firstPV.y();
     pvs_z_ = firstPV.z();
     pvs_t_ = firstPV.t();
-    tree_->Fill();
+  //  tree_->Fill();
   }
 
   // Fill beam spot information
@@ -274,7 +378,7 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
     beamspot_x_ = beamspot->x0();
     beamspot_y_ = beamspot->y0();
     beamspot_z_ = beamspot->z0();
-    tree_->Fill();
+  //  tree_->Fill();
   }
 
   // Fill generator particle z-positions
@@ -284,19 +388,12 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
     }
   }
 
-  // Fill generated vertex z-position
-  if (genvertex.isValid()) {
-     const HepMC::GenEvent* evt = genvertex->GetEvent();
-    if (evt && evt->vertices_size() > 0) {
-        const HepMC::GenVertex* firstVertex = *(evt->vertices_begin());
-        genvertex_z_ = firstVertex->position().z();
-    }
-  }
 
   // Fill generator vertex z-position (already done above, but now write it to tree)
   if (hasGenZ) {
-    tree_->Fill();
+  //  tree_->Fill();
   }
+tree_->Fill();
 }//End of void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) {
 
 

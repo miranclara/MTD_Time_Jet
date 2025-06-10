@@ -72,11 +72,19 @@ private:
 
 
   TTree* tree_;
-  float jetResponse_;
-  float jetAbsEta_;
+  std::vector<float> jetPt_, genPt_;
+  std::vector<float> jetResponse_;
+  std::vector<float> jetAbsEta_;
 //  float jetResponse_ULv15;
-  float jetResponse_PR_tight_;
-  float jetResponse_PR_loose_;
+  std::vector<float> jetPt_tight_;
+  std::vector<float> genPt_tight_;
+  std::vector<float> jetPt_loose_;
+  std::vector<float> genPt_loose_;
+  std::vector<float> jetResponse_PR_tight_;
+  std::vector<float> jetResponse_PR_loose_;
+  std::vector<float> jetAbsEta_tight_;
+  std::vector<float> jetAbsEta_loose_;
+
 //  float jetResponse_4D;
 //  std::vector<PrimaryVertex> primaryVertices;
 
@@ -114,10 +122,18 @@ void JetTreeProducer::beginJob() {
   edm::Service<TFileService> fs_;
   tree_ = fs_->make<TTree>("JetTree", "JetTree");
 
-  tree_->Branch("jetResponse", &jetResponse_, "jetResponse/F");
-  tree_->Branch("jetAbsEta", &jetAbsEta_, "jetAbsEta/F");  
-  tree_->Branch("jetResponse_PR_tight", &jetResponse_PR_tight_, "jetResponse_PR_tight/F");
-  tree_->Branch("jetResponse_PR_loose", &jetResponse_PR_loose_, "jetResponse_PR_loose/F");
+  tree_->Branch("jetPt", &jetPt_);
+  tree_->Branch("genPt", &genPt_);
+  tree_->Branch("jetResponse", &jetResponse_);
+  tree_->Branch("jetAbsEta", &jetAbsEta_);  
+  tree_->Branch("jetResponse_PR_tight", &jetResponse_PR_tight_);
+  tree_->Branch("jetResponse_PR_loose", &jetResponse_PR_loose_);
+  tree_->Branch("jetAbsEta_tight", &jetAbsEta_tight_);
+  tree_->Branch("jetAbsEta_loose", &jetAbsEta_loose_);
+  tree_->Branch("jetPt_tight", &jetPt_tight_);
+  tree_->Branch("genPt_tight", &genPt_tight_);
+  tree_->Branch("jetPt_loose", &jetPt_loose_);
+  tree_->Branch("genPt_loose", &genPt_loose_);
 //  tree_->Branch("primaryVertices", &primaryVertices);
 
 
@@ -140,7 +156,7 @@ void JetTreeProducer::beginJob() {
   tree_->Branch("beamspot_y", &beamspot_y_, "beamspot_y/F");
   tree_->Branch("beamspot_z", &beamspot_z_, "beamspot_z/F");
   // Branches for generated particles
-  tree_->Branch("genparticles_z", &genparticles_z_);
+  tree_->Branch("genparticles_z", &genparticles_z_,"genparticles_z/F");
   tree_->Branch("genvertex_z", &genvertex_z_, "genvertex_z/F");
 
    // Branches for <pat::PackedCandidate> collection 
@@ -164,11 +180,17 @@ void JetTreeProducer::beginJob() {
 void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) {
 //  pfparticles.clear();
   genparticles_z_.clear();
-  jetResponse_=-1;
-  jetResponse_PR_tight_ = -1;
-  jetResponse_PR_loose_ = -1;
-  jetAbsEta_ = -1; 
-  
+  jetResponse_.clear();
+  jetAbsEta_.clear(); 
+  jetPt_tight_.clear();
+  genPt_tight_.clear();
+  jetPt_loose_.clear();
+  genPt_loose_.clear();
+  jetResponse_PR_tight_.clear();
+  jetResponse_PR_loose_.clear();
+  jetAbsEta_tight_.clear();
+  jetAbsEta_loose_.clear();
+
 // Retrieve jet collection
   edm::Handle<std::vector<pat::Jet>> jets;
   iEvent.getByToken(jetsToken_, jets);
@@ -250,8 +272,13 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
       eta_ = jet.eta();
       phi_ = jet.phi();
       mass_ = jet.mass();
-      jetResponse_ = (matchedGenJet->pt() > 0) ? jet.pt() / matchedGenJet->pt() : -1.0;
-      jetAbsEta_   = std::abs(jet.eta());
+//      jetResponse_ = (matchedGenJet->pt() > 0) ? jet.pt() / matchedGenJet->pt() : -1.0;
+//      jetAbsEta_   = std::abs(jet.eta());
+      jetResponse_.push_back(jet.pt() / matchedGenJet->pt());
+      jetAbsEta_.push_back(std::abs(jet.eta()));
+      jetPt_.push_back(jet.pt());
+      genPt_.push_back(matchedGenJet->pt());
+
   //    tree_->Fill();  // fill the tree with this matched jet
     }//End of if (matchedGenJet)
 
@@ -334,19 +361,54 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
     }
     if (matchedGenJet && matchedGenJet->pt() > 0){
       return recoJet.pt() / matchedGenJet->pt();
+      
     }
       return -1;
   };
 
-  if (!tightJets.empty()) {
-    jetResponse_PR_tight_ = computeResponse(tightJets[0]);
-    jetAbsEta_ = std::abs(tightJets[0].eta());
-   }
 
-  if (!looseJets.empty()) {
-    jetResponse_PR_loose_ = computeResponse(looseJets[0]);
-    if (jetAbsEta_ < 0) jetAbsEta_ = std::abs(looseJets[0].eta());
-  }
+  for (const auto& jet : tightJets) {
+    float response = computeResponse(jet);
+    jetResponse_PR_tight_.push_back(response);
+    jetAbsEta_tight_.push_back(std::abs(jet.eta()));
+    jetPt_tight_.push_back(jet.pt());
+
+    // get matching GenJet pT
+    const reco::GenJet* matchedGenJet = nullptr;
+    float minDR = 0.3;
+    for (const auto& genJet : *genJets) {
+      float dR = reco::deltaR(jet.eta(), jet.phi(), genJet.eta(), genJet.phi());
+      if (dR < minDR) {
+        minDR = dR;
+        matchedGenJet = &genJet;
+      }
+    }
+    genPt_tight_.push_back((matchedGenJet) ? matchedGenJet->pt() : -1);
+
+    if (jetResponse_PR_tight_.size() >= 5) break;
+  }//for (const auto& jet : tightJets)
+
+
+  for (const auto& jet : looseJets) {
+    float response = computeResponse(jet);
+    jetResponse_PR_loose_.push_back(response);
+    jetAbsEta_loose_.push_back(std::abs(jet.eta()));
+    jetPt_loose_.push_back(jet.pt());
+
+    // get matching GenJet pT
+    const reco::GenJet* matchedGenJet = nullptr;
+    float minDR = 0.3;
+    for (const auto& genJet : *genJets) {
+      float dR = reco::deltaR(jet.eta(), jet.phi(), genJet.eta(), genJet.phi());
+      if (dR < minDR) {
+        minDR = dR;
+        matchedGenJet = &genJet;
+      }
+    }
+    genPt_loose_.push_back((matchedGenJet) ? matchedGenJet->pt() : -1);
+
+    if (jetResponse_PR_loose_.size() >= 5) break;
+  }//End of for (const auto& jet : looseJets)
 
   //Store all primary vertices in a vector
     std::vector<PrimaryVertex> primaryVertices;

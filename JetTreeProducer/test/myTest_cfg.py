@@ -10,6 +10,7 @@ process.source = cms.Source("PoolSource",
     fileNames = cms.untracked.vstring(), #Crab:For T3_CH_CERNBOX setting
 #    fileNames = cms.untracked.vstring('/store/relval/CMSSW_15_0_0/RelValTTbar_14TeV/MINIAODSIM/PU_141X_mcRun4_realistic_v3_STD_Run4D110_PU-v2/2580000/9c9737ed-bb08-48c5-9f58-ba4bb149c0d7.root'),
 #    fileNames = cms.untracked.vstring('/store/mc/Phase2HLTTDRSummer20ReRECOMiniAOD/QCD_Pt_300to470_TuneCP5_14TeV_pythia8/GEN-SIM-DIGI-RAW-MINIAOD/NoPU_111X_mcRun4_realistic_T15_v1-v1/100000/1750775B-F6D7-AE4A-8097-AE0181CE03A9.root'),
+#    fileNames = cms.untracked.vstring('/store/relval/CMSSW_15_1_0_pre3/RelValQCD_Pt15To7000_Flat_14/MINIAODSIM/PU_150X_mcRun4_realistic_v1_STD_Run4D110_PU-v1/2590000/f20b63ca-ab47-46de-a883-b90cd5279b65.root'),
     inputCommands = cms.untracked.vstring(
         'keep *',
         'drop l1tTkPrimaryVertexs_L1TkPrimaryVertex__RECO'
@@ -28,7 +29,7 @@ process.source = cms.Source("PoolSource",
 
 # Max events
 process.maxEvents = cms.untracked.PSet(
-    input = cms.untracked.int32(10)  # process all events(-1)
+    input = cms.untracked.int32(-1)  # process all events(-1)
 )
 
 # iJetTreeProducer configuration
@@ -60,7 +61,7 @@ process.jetTree = cms.EDAnalyzer("JetTreeProducer",
 
 # Output configuration
 process.TFileService = cms.Service("TFileService",
-  fileName = cms.string('jetTree_PU200.root'),  # This is where the flat ROOT file will be stored
+  fileName = cms.string('jetTree_QCD.root'),  # This is where the flat ROOT file will be stored
   closeFileFast = cms.untracked.bool(True)
 )
 # Path

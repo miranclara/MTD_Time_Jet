@@ -203,7 +203,7 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   edm::Handle<std::vector<reco::Vertex>> pv_handle;
   iEvent.getByToken(pvsToken_, pv_handle); 
   if (pv_handle.isValid()) {
-    reco_pvs = *pv_handle;
+    reco_pvs = *pv_handle;//reco_pvs is a direct copy of all the primary vertices in this event
   }
 
   // Retrieve gen vertex
@@ -214,13 +214,14 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
     const HepMC::GenEvent* evt = genvertex->GetEvent();
     if (evt && evt->vertices_size() > 0) {
       const HepMC::GenVertex* firstVertex = *(evt->vertices_begin());
-      genvertex_z_ = firstVertex->position().z();
+      genvertex_z_ = firstVertex->position().z(); //position() returns a 4-vector (x, y, z, t)
       hasGenZ = true;
     }
   }
 
 
-  // ⛔ Early event rejection if gen vertex is valid and reco_pvs is not empty
+  // ⛔ Early event rejection if gen vertex is valid and reco_pvs(primary vertices) is not empty
+  // =Only accept the event if the first reco PV is literally the one closest to the gen vertex.
   if (hasGenZ && !reco_pvs.empty()) {
     double dz_first = std::abs(reco_pvs[0].z() - genvertex_z_);
     double minDist = dz_first;
@@ -348,7 +349,8 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
 //  jetResponse_PR_tight_ = -1;
 //  jetResponse_PR_loose_ = -1;
 //  jetAbsEta_ = -1; 
-   
+
+//GenJet matching logic1   
   auto computeResponse = [&](const fastjet::PseudoJet& recoJet) -> float {
     const reco::GenJet* matchedGenJet = nullptr;
     float minDR = 0.3;
@@ -373,7 +375,7 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
     jetAbsEta_tight_.push_back(std::abs(jet.eta()));
     jetPt_tight_.push_back(jet.pt());
 
-    // get matching GenJet pT
+    //GenJet matching logic2: get matching GenJet pT
     const reco::GenJet* matchedGenJet = nullptr;
     float minDR = 0.3;
     for (const auto& genJet : *genJets) {
@@ -395,7 +397,7 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
     jetAbsEta_loose_.push_back(std::abs(jet.eta()));
     jetPt_loose_.push_back(jet.pt());
 
-    // get matching GenJet pT
+    //GenJet matching logic2:  get matching GenJet pT
     const reco::GenJet* matchedGenJet = nullptr;
     float minDR = 0.3;
     for (const auto& genJet : *genJets) {

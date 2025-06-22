@@ -84,7 +84,10 @@ private:
   std::vector<float> jetResponse_PR_loose_;
   std::vector<float> jetAbsEta_tight_;
   std::vector<float> jetAbsEta_loose_;
-
+  std::vector<float> jetPt_MTD_, jetAbsEta_MTD_, jetTime_MTD_, jetTimeError_MTD_;//For MTD-based jet clustering
+  std::vector<float> pf_vertex,pf_pt, pf_eta, pf_phi, pf_energy,pf_charge,pf_puppiWeight,pf_puppiWeightNoLep;//For <pat::PackedCandidate> collection
+std::vector<float> pf_dxy, pf_dz, pf_dzError, pf_dzSig, pf_time, pf_timeError;//For <pat::PackedCandidate> collection
+  std::vector<float> genparticles_z_;
 //  float jetResponse_4D;
 //  std::vector<PrimaryVertex> primaryVertices;
 
@@ -94,11 +97,11 @@ private:
   float pvs_x_, pvs_y_, pvs_z_,pvs_t_; // For primary vertex position
   float beamspot_x_, beamspot_y_, beamspot_z_; // For beam spot position
 //  float genparticles_z_; // For generated particles z-position
-  std::vector<float> genparticles_z_;
   float genvertex_z_;
-  float pf_vertex,pf_pt, pf_eta, pf_phi, pf_energy,pf_charge,pf_puppiWeight,pf_puppiWeightNoLep,pf_dxy,pf_dz,pf_dzError,pf_dzSig,pf_time,pf_timeError;//For <pat::PackedCandidate> collection
-  float pf_vx, pf_vy, pf_vz;//For <pat::PackedCandidate> collection
-  int pf_pdgId,pf_isTimeValid;//For <pat::PackedCandidate> collection
+//  float pf_vx, pf_vy, pf_vz;//For <pat::PackedCandidate> collection
+//  int pf_pdgId,pf_isTimeValid;//For <pat::PackedCandidate> collection
+  std::vector<float> pf_vx, pf_vy, pf_vz;
+  std::vector<int> pf_pdgId;
 
 };
 
@@ -134,6 +137,12 @@ void JetTreeProducer::beginJob() {
   tree_->Branch("genPt_tight", &genPt_tight_);
   tree_->Branch("jetPt_loose", &jetPt_loose_);
   tree_->Branch("genPt_loose", &genPt_loose_);
+
+  tree_->Branch("jetPt_MTD", &jetPt_MTD_);
+  tree_->Branch("jetAbsEta_MTD", &jetAbsEta_MTD_);
+  tree_->Branch("jetTime_MTD", &jetTime_MTD_);
+  tree_->Branch("jetTimeError_MTD", &jetTimeError_MTD_);
+
 //  tree_->Branch("primaryVertices", &primaryVertices);
 
 
@@ -160,25 +169,46 @@ void JetTreeProducer::beginJob() {
   tree_->Branch("genvertex_z", &genvertex_z_, "genvertex_z/F");
 
    // Branches for <pat::PackedCandidate> collection 
-  tree_->Branch("pf_pt", &pf_pt, "pf_pt/F");
-  tree_->Branch("pf_eta", &pf_eta, "pf_eta/F");
-  tree_->Branch("pf_phi", &pf_phi, "pf_phi/F");
-  tree_->Branch("pf_energy", &pf_energy, "pf_energy/F");
-  tree_->Branch("pf_charge", &pf_charge, "pf_charge/F");
-  tree_->Branch("pf_puppiWeight", &pf_puppiWeight, "pf_puppiWeight/F");
-  tree_->Branch("pf_puppiWeightNoLep", &pf_puppiWeightNoLep, "pf_puppiWeightNoLep/F");
-  tree_->Branch("pf_dz", &pf_dz, "pf_dz/F");
-  tree_->Branch("pf_dzError", &pf_dzError, "pf_dzError/F");
-  tree_->Branch("pf_dzSig", &pf_dzSig, "pf_dzSig/F");
-  tree_->Branch("pf_time", &pf_time, "pf_time/F");
-  tree_->Branch("pf_pdgId", &pf_pdgId, "pf_pdgId/I");
-  tree_->Branch("pf_vx", &pf_vx, "pf_vx/F");
-  tree_->Branch("pf_vy", &pf_vy, "pf_vy/F");
-  tree_->Branch("pf_vz", &pf_vz, "pf_vz/F");
+  tree_->Branch("pf_pt", &pf_pt);
+  tree_->Branch("pf_eta", &pf_eta);
+  tree_->Branch("pf_phi", &pf_phi);
+  tree_->Branch("pf_energy", &pf_energy);
+  tree_->Branch("pf_charge", &pf_charge);
+  tree_->Branch("pf_puppiWeight", &pf_puppiWeight);
+  tree_->Branch("pf_puppiWeightNoLep", &pf_puppiWeightNoLep);
+  tree_->Branch("pf_dz", &pf_dz);
+  tree_->Branch("pf_dzError", &pf_dzError);
+  tree_->Branch("pf_dzSig", &pf_dzSig);
+  tree_->Branch("pf_time", &pf_time);
+  tree_->Branch("pf_timeError", &pf_timeError);
+  tree_->Branch("pf_pdgId", &pf_pdgId);
+  tree_->Branch("pf_vx", &pf_vx);
+  tree_->Branch("pf_vy", &pf_vy);
+  tree_->Branch("pf_vz", &pf_vz);
+  tree_->Branch("pf_pdgId", &pf_pdgId);
 }
 
 void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) {
 //  pfparticles.clear();
+  pf_pt.clear();
+  pf_eta.clear();
+  pf_phi.clear();
+  pf_energy.clear();
+  pf_charge.clear();
+  pf_puppiWeight.clear();
+  pf_puppiWeightNoLep.clear();
+  pf_dxy.clear();
+  pf_dz.clear();
+  pf_dzError.clear();
+  pf_dzSig.clear();
+  pf_time.clear();
+  pf_timeError.clear();
+  pf_vx.clear();
+  pf_vy.clear();
+  pf_vz.clear();
+  pf_pdgId.clear();
+  
+  jetPt_.clear();
   genparticles_z_.clear();
   jetResponse_.clear();
   jetAbsEta_.clear(); 
@@ -190,6 +220,12 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   jetResponse_PR_loose_.clear();
   jetAbsEta_tight_.clear();
   jetAbsEta_loose_.clear();
+
+  jetPt_MTD_.clear();
+  jetAbsEta_MTD_.clear();
+  jetTime_MTD_.clear();
+  jetTimeError_MTD_.clear();
+
 
 // Retrieve jet collection
   edm::Handle<std::vector<pat::Jet>> jets;
@@ -291,51 +327,65 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   // Fill PackedCandidates
   std::vector<fastjet::PseudoJet> fjInputs_tight;
   std::vector<fastjet::PseudoJet> fjInputs_loose;
+  std::vector<fastjet::PseudoJet> fjInputs_MTD;
+  std::vector<const pat::PackedCandidate*> pf_for_MTD;
 //  primaryVertices.clear();
 
   for (const auto& pf : pf_coll) {
-    pf_pt = pf.pt();
-    pf_eta = pf.eta();
-    pf_phi = pf.phi();
-    pf_energy = pf.energy();
-    pf_charge = pf.charge();
-    pf_puppiWeight = pf.puppiWeight();
-    pf_puppiWeightNoLep = pf.puppiWeightNoLep();
+    pf_pt.push_back(pf.pt());
+    pf_eta.push_back(pf.eta());
+    pf_phi.push_back(pf.phi());
+    pf_energy.push_back(pf.energy());
+    pf_charge.push_back(pf.charge());
+    pf_puppiWeight.push_back(pf.puppiWeight());
+    pf_puppiWeightNoLep.push_back(pf.puppiWeightNoLep());
 // vertex is always available, but dz/dzError are not
-    pf_vx = pf.vertex().x();
-    pf_vy = pf.vertex().y();
-    pf_vz = pf.vertex().z();
+    pf_vx.push_back(pf.vertex().x());
+    pf_vy.push_back(pf.vertex().y());
+    pf_vz.push_back(pf.vertex().z());
+    pf_pdgId.push_back(pf.pdgId());
 
     if (pf.hasTrackDetails()) {
-      pf_dxy=pf.dxy();
-      pf_dz=pf.dz();
-      pf_dzError=pf.dzError();
-      pf_dzSig = (pf_dzError > 0) ? pf_dz / pf_dzError : 0;  
-//      pf_dzSig = pf.dz() / pf.dzError();
-      pf_time = pf.time();
-      pf_timeError = pf.timeError();
+      float dz     = pf.dz();
+      float dzErr  = pf.dzError();
+      float dzSig  = (dzErr > 0) ? dz / dzErr : 0;
 
+      pf_dxy.push_back(pf.dxy());
+      pf_dz.push_back(dz);
+      pf_dzError.push_back(dzErr);
+      pf_dzSig.push_back(dzSig);  
+      pf_time.push_back(pf.time());
+      pf_timeError.push_back(pf.timeError());
+
+      // Common PseudoJet for dz-based clustering
       fastjet::PseudoJet pj(pf.px(), pf.py(), pf.pz(), pf.energy());
-      pj.set_user_index(0);
+      pj.set_user_index(0);//this one used for tight/loose only, Not used for MTD
 
-      if (std::abs(pf_dz) < 0.1 && pf_dzSig < 5) {
+      if (std::abs(dz) < 0.1 && dzSig < 5) {
       fjInputs_tight.push_back(pj);
       }
-      if (std::abs(pf_dz) < 0.2 && pf_dzSig < 5) {
+      if (std::abs(dz) < 0.2 && dzSig < 5) {
       fjInputs_loose.push_back(pj);
+      }
+        // MTD-based selection
+//      if (pf.isTimeValid() && pf.timeError() < 0.05) {//pat::PackedCandidate does not have a method called .isTimeValid()
+      if (pf.timeError() > 0 && pf.timeError() < 0.05) {
+        fastjet::PseudoJet pj_mtd(pf.px(), pf.py(), pf.pz(), pf.energy());
+        pj_mtd.set_user_index(pf_for_MTD.size());//index back to PackedCandidate
+        fjInputs_MTD.push_back(pj_mtd);
+        pf_for_MTD.push_back(&pf);
       }
 
     } else {
-      pf_dxy=0;
-      pf_dz = 0;
-      pf_dzError = 1e6;  // avoid division by zero
-      pf_dzSig = 0;
-      pf_time = 0;
-      pf_timeError = 1e6;
-    }
+      // Fill with defaults to avoid division by zero, preserve structure
+      pf_dxy.push_back(0);
+      pf_dz.push_back(0);
+      pf_dzError.push_back(1e6);  // avoid division by zero
+      pf_dzSig.push_back(0);
+      pf_time.push_back(0);
+      pf_timeError.push_back(1e6);
+    } 
 
-    pf_pdgId = pf.pdgId();
-//    tree_->Fill();
   }//End of for (const auto& pf : pf_coll)
 
 // Run the jet clustering algorithm on each collection
@@ -346,11 +396,15 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   auto cs_loose = fastjet::ClusterSequence(fjInputs_loose, jetDef);
   auto looseJets = fastjet::sorted_by_pt(cs_loose.inclusive_jets(20.0));
 
+  auto cs_mtd = fastjet::ClusterSequence(fjInputs_MTD, jetDef);
+  auto mtdJets = fastjet::sorted_by_pt(cs_mtd.inclusive_jets(20.0));
+
+
 //  jetResponse_PR_tight_ = -1;
 //  jetResponse_PR_loose_ = -1;
 //  jetAbsEta_ = -1; 
 
-//GenJet matching logic1   
+//GenJet matching logic1  
   auto computeResponse = [&](const fastjet::PseudoJet& recoJet) -> float {
     const reco::GenJet* matchedGenJet = nullptr;
     float minDR = 0.3;
@@ -411,6 +465,31 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
 
     if (jetResponse_PR_loose_.size() >= 5) break;
   }//End of for (const auto& jet : looseJets)
+
+  //Compute per-jet timing (pT-weighted average)
+  for (const auto& jet : mtdJets) {
+    float sumPt = 0.0, sumTime = 0.0, sumTime2 = 0.0;
+
+    for (const auto& idx : jet.constituents()) {
+      int userIdx = idx.user_index();
+      if (userIdx >= 0 && userIdx < static_cast<int>(pf_for_MTD.size())) {
+        const auto* pf = pf_for_MTD[userIdx];
+        float weight = pf->pt();
+        sumPt += weight;
+        sumTime += weight * pf->time();
+        sumTime2 += weight * pf->time() * pf->time();
+      }
+    }
+    float avgTime = (sumPt > 0) ? sumTime / sumPt : -999;
+    float rmsTime = (sumPt > 0) ? std::sqrt(sumTime2 / sumPt - avgTime * avgTime) : -1;
+
+    jetPt_MTD_.push_back(jet.pt());
+    jetAbsEta_MTD_.push_back(std::abs(jet.eta()));
+    jetTime_MTD_.push_back(avgTime);
+    jetTimeError_MTD_.push_back(rmsTime);
+
+    if (jetPt_MTD_.size() >= 5) break;
+  }//End of for (const auto& jet : mtdJets)
 
   //Store all primary vertices in a vector
     std::vector<PrimaryVertex> primaryVertices;

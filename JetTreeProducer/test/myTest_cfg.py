@@ -30,6 +30,7 @@ process.source = cms.Source("PoolSource",
 # Max events
 process.maxEvents = cms.untracked.PSet(
     input = cms.untracked.int32(-1)  # process all events(-1)
+#    input = cms.untracked.int32(10)  # For test run
 )
 
 # iJetTreeProducer configuration

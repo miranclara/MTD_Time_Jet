@@ -76,17 +76,21 @@ private:
   std::vector<float> jetResponse_;
   std::vector<float> jetAbsEta_;
 //  float jetResponse_ULv15;
+  std::vector<float> jetPt_pflaw_;
+  std::vector<float> genPt_pflaw_;
   std::vector<float> jetPt_tight_;
   std::vector<float> genPt_tight_;
   std::vector<float> jetPt_loose_;
   std::vector<float> genPt_loose_;
+  std::vector<float> jetResponse_PR_pflaw_;
   std::vector<float> jetResponse_PR_tight_;
   std::vector<float> jetResponse_PR_loose_;
+  std::vector<float> jetAbsEta_pflaw_;
   std::vector<float> jetAbsEta_tight_;
   std::vector<float> jetAbsEta_loose_;
   std::vector<float> jetPt_MTD_, jetAbsEta_MTD_, jetTime_MTD_, jetTimeError_MTD_;//For MTD-based jet clustering
   std::vector<float> pf_vertex,pf_pt, pf_eta, pf_phi, pf_energy,pf_charge,pf_puppiWeight,pf_puppiWeightNoLep;//For <pat::PackedCandidate> collection
-std::vector<float> pf_dxy, pf_dz, pf_dzError, pf_dzSig, pf_time, pf_timeError;//For <pat::PackedCandidate> collection
+std::vector<float> pf_dxy, pf_dz, pf_dzError, pf_dzSig, pf_time, pf_timeError, pf_dtSig;//For <pat::PackedCandidate> collection
   std::vector<float> genparticles_z_;
 //  float jetResponse_4D;
 //  std::vector<PrimaryVertex> primaryVertices;
@@ -101,7 +105,8 @@ std::vector<float> pf_dxy, pf_dz, pf_dzError, pf_dzSig, pf_time, pf_timeError;//
 //  float pf_vx, pf_vy, pf_vz;//For <pat::PackedCandidate> collection
 //  int pf_pdgId,pf_isTimeValid;//For <pat::PackedCandidate> collection
   std::vector<float> pf_vx, pf_vy, pf_vz;
-  std::vector<int> pf_pdgId;
+  std::vector<int> pf_pdgId, pf_fromPV;
+  float efficiency_tight_, purity_tight_,efficiency_loose_, purity_loose_;
 
 };
 
@@ -129,10 +134,14 @@ void JetTreeProducer::beginJob() {
   tree_->Branch("genPt", &genPt_);
   tree_->Branch("jetResponse", &jetResponse_);
   tree_->Branch("jetAbsEta", &jetAbsEta_);  
+  tree_->Branch("jetResponse_PR_tight", &jetResponse_PR_pflaw_);
   tree_->Branch("jetResponse_PR_tight", &jetResponse_PR_tight_);
   tree_->Branch("jetResponse_PR_loose", &jetResponse_PR_loose_);
+  tree_->Branch("jetAbsEta_tight", &jetAbsEta_pflaw_);
   tree_->Branch("jetAbsEta_tight", &jetAbsEta_tight_);
   tree_->Branch("jetAbsEta_loose", &jetAbsEta_loose_);
+  tree_->Branch("jetPt_tight", &jetPt_pflaw_);
+  tree_->Branch("genPt_tight", &genPt_pflaw_);
   tree_->Branch("jetPt_tight", &jetPt_tight_);
   tree_->Branch("genPt_tight", &genPt_tight_);
   tree_->Branch("jetPt_loose", &jetPt_loose_);
@@ -181,11 +190,16 @@ void JetTreeProducer::beginJob() {
   tree_->Branch("pf_dzSig", &pf_dzSig);
   tree_->Branch("pf_time", &pf_time);
   tree_->Branch("pf_timeError", &pf_timeError);
+  tree_->Branch("pf_dtSig", &pf_dtSig);
   tree_->Branch("pf_pdgId", &pf_pdgId);
   tree_->Branch("pf_vx", &pf_vx);
   tree_->Branch("pf_vy", &pf_vy);
   tree_->Branch("pf_vz", &pf_vz);
-  tree_->Branch("pf_pdgId", &pf_pdgId);
+  tree_->Branch("pf_fromPV", &pf_fromPV);
+  tree_->Branch("efficiency_tight", &efficiency_tight_);
+  tree_->Branch("purity_tight", &purity_tight_);
+  tree_->Branch("efficiency_loose", &efficiency_loose_);
+  tree_->Branch("purity_loose", &purity_loose_);
 }
 
 void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) {
@@ -203,21 +217,26 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   pf_dzSig.clear();
   pf_time.clear();
   pf_timeError.clear();
+  pf_dtSig.clear();
   pf_vx.clear();
   pf_vy.clear();
   pf_vz.clear();
   pf_pdgId.clear();
+  pf_fromPV.clear();
   
   jetPt_.clear();
   genparticles_z_.clear();
   jetResponse_.clear();
   jetAbsEta_.clear(); 
+  jetPt_pflaw_.clear();
   jetPt_tight_.clear();
   genPt_tight_.clear();
   jetPt_loose_.clear();
   genPt_loose_.clear();
+  jetResponse_PR_pflaw_.clear();
   jetResponse_PR_tight_.clear();
   jetResponse_PR_loose_.clear();
+  jetAbsEta_pflaw_.clear();
   jetAbsEta_tight_.clear();
   jetAbsEta_loose_.clear();
 
@@ -225,6 +244,13 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   jetAbsEta_MTD_.clear();
   jetTime_MTD_.clear();
   jetTimeError_MTD_.clear();
+
+  int N_HS_total = 0;
+//  int N_selected = 0;
+  int N_selected_tight = 0;
+  int N_selected_HS_tight = 0;
+  int N_selected_loose = 0;
+  int N_selected_HS_loose = 0;
 
 
 // Retrieve jet collection
@@ -325,6 +351,7 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
 
 
   // Fill PackedCandidates
+  std::vector<fastjet::PseudoJet> fjInputs_raw;
   std::vector<fastjet::PseudoJet> fjInputs_tight;
   std::vector<fastjet::PseudoJet> fjInputs_loose;
   std::vector<fastjet::PseudoJet> fjInputs_MTD;
@@ -344,11 +371,21 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
     pf_vy.push_back(pf.vertex().y());
     pf_vz.push_back(pf.vertex().z());
     pf_pdgId.push_back(pf.pdgId());
+    pf_fromPV.push_back(pf.fromPV());
 
     if (pf.hasTrackDetails()) {
+      bool isHS = (pf.fromPV() > 1);  // fromPV: 3 = tightly associated to PV
+      if (isHS) ++N_HS_total;
+
       float dz     = pf.dz();
       float dzErr  = pf.dzError();
-      float dzSig  = (dzErr > 0) ? dz / dzErr : 0;
+      float dzSig  = (dzErr > 0) ? dz / dzErr : 999;
+
+      float t = pf.time();
+      float tErr = pf.timeError();
+      float dt = t - pvs_t_;
+      float dtSig = (tErr > 0) ? dt / tErr : 999;
+
 
       pf_dxy.push_back(pf.dxy());
       pf_dz.push_back(dz);
@@ -356,16 +393,24 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
       pf_dzSig.push_back(dzSig);  
       pf_time.push_back(pf.time());
       pf_timeError.push_back(pf.timeError());
+      pf_dtSig.push_back(dtSig);
 
       // Common PseudoJet for dz-based clustering
       fastjet::PseudoJet pj(pf.px(), pf.py(), pf.pz(), pf.energy());
       pj.set_user_index(0);//this one used for tight/loose only, Not used for MTD
-
-      if (std::abs(dz) < 0.1 && dzSig < 5) {
-      fjInputs_tight.push_back(pj);
+   
+      //dz:mean -3.1 X 10(-6), sigma:0.010cm
+      //dzSig: mean -2.1X 10 (-6), sigma: 0.073
+      fjInputs_raw.push_back(pj);//no cut (for control)
+      if (std::abs(dz) < 0.03 && dzSig < 0.2) {
+        fjInputs_tight.push_back(pj);
+        ++N_selected_tight;
+        if (isHS) ++N_selected_HS_tight;
       }
-      if (std::abs(dz) < 0.2 && dzSig < 5) {
-      fjInputs_loose.push_back(pj);
+      if (std::abs(dz) < 0.05 && dzSig < 0.5) {
+        fjInputs_loose.push_back(pj);
+        ++N_selected_loose;
+        if (isHS) ++N_selected_HS_loose;
       }
         // MTD-based selection
 //      if (pf.isTimeValid() && pf.timeError() < 0.05) {//pat::PackedCandidate does not have a method called .isTimeValid()
@@ -384,12 +429,34 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
       pf_dzSig.push_back(0);
       pf_time.push_back(0);
       pf_timeError.push_back(1e6);
+      pf_dtSig.push_back(1e6);
     } 
 
   }//End of for (const auto& pf : pf_coll)
 
+float efficiency_tight = (N_HS_total > 0) ? float(N_selected_HS_tight) / N_HS_total : 0;
+float purity_tight     = (N_selected_tight > 0) ? float(N_selected_HS_tight) / N_selected_tight : 0;
+float efficiency_loose = (N_HS_total > 0) ? float(N_selected_HS_loose) / N_HS_total : 0;
+float purity_loose     = (N_selected_loose > 0) ? float(N_selected_HS_loose) / N_selected_loose : 0;
+
+edm::LogVerbatim("JetTreeProducer") 
+  << "Efficiency_tight = " << efficiency_tight<< ", Purity_tight = " << purity_tight
+  << " (with cuts: dzSig < 0.03, dtSig < 0.2)";
+
+edm::LogVerbatim("JetTreeProducer") 
+  << "Efficiency_loose = " << efficiency_loose<< ", Purity_loose = " << purity_loose
+  << " (with cuts: dzSig < 0.05, dtSig < 0.5)";
+
+efficiency_tight_ = efficiency_tight;
+purity_tight_ = purity_tight;
+efficiency_loose_ = efficiency_loose;
+purity_loose_ = purity_loose;
+
 // Run the jet clustering algorithm on each collection
   fastjet::JetDefinition jetDef(fastjet::antikt_algorithm, 0.4);
+  auto cs_raw = fastjet::ClusterSequence(fjInputs_raw, jetDef);
+  auto pfrawJets = fastjet::sorted_by_pt(cs_raw.inclusive_jets(20.0));
+  
   auto cs_tight = fastjet::ClusterSequence(fjInputs_tight, jetDef);
   auto tightJets = fastjet::sorted_by_pt(cs_tight.inclusive_jets(20.0));
 
@@ -422,6 +489,27 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
       return -1;
   };
 
+  // no cut (for control)
+  for (const auto& jet : pfrawJets) {
+    float response = computeResponse(jet);
+    jetResponse_PR_pflaw_.push_back(response);
+    jetAbsEta_pflaw_.push_back(std::abs(jet.eta()));
+    jetPt_pflaw_.push_back(jet.pt());
+
+    //GenJet matching logic2: get matching GenJet pT
+    const reco::GenJet* matchedGenJet = nullptr;
+    float minDR = 0.3;
+    for (const auto& genJet : *genJets) {
+      float dR = reco::deltaR(jet.eta(), jet.phi(), genJet.eta(), genJet.phi());
+      if (dR < minDR) {
+        minDR = dR;
+        matchedGenJet = &genJet;
+      }
+    }
+    genPt_pflaw_.push_back((matchedGenJet) ? matchedGenJet->pt() : -1);
+
+    if (jetResponse_PR_tight_.size() >= 5) break;
+  }//for (const auto& jet : pfrawJets)
 
   for (const auto& jet : tightJets) {
     float response = computeResponse(jet);

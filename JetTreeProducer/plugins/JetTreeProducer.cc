@@ -435,13 +435,19 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
       //dz:mean -3.1 X 10(-6), sigma:0.010cm
       //dzSig: mean -2.1X 10 (-6), sigma: 0.073
       fjInputs_raw.push_back(pj);//no cut (for control)
+      
+      bool passesTightCut = (std::abs(dz) < 0.03 && dzSig < 0.2);//3D selection
+      bool passesLooseCut = (std::abs(dz) < 0.05 && dzSig < 0.5);//3D selection
+      bool keepDisplaced = (isDisplaced && hasValidTime);//4D selection
 
       if (keepAlways || (std::abs(dz) < 0.03 && dzSig < 0.2)) {
+//      if (keepAlways || passesTightCut || keepDisplaced) {//To save track has large dz,4D selection
         fjInputs_tight.push_back(pj);
         ++N_selected_tight;
         if (isHS) ++N_selected_HS_tight;
       }
       if (keepAlways || (std::abs(dz) < 0.05 && dzSig < 0.5)) {
+//      if (keepAlways || passesLooseCut || keepDisplaced) {//To save track has large dz, 4D selection
         fjInputs_loose.push_back(pj);
         ++N_selected_loose;
         if (isHS) ++N_selected_HS_loose;

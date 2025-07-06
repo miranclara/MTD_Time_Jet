@@ -373,27 +373,60 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
     pf_pdgId.push_back(pf.pdgId());
     pf_fromPV.push_back(pf.fromPV());
 
-    if (pf.hasTrackDetails()) {
+    const bool isCharged = (pf.charge() != 0);
+    const int fromPV = pf.fromPV();
+    const bool keepAlways = (fromPV == 3);
+
+    if (pf.hasTrackDetails() && isCharged) {
       bool isHS = (pf.fromPV() > 1);  // fromPV: 3 = tightly associated to PV
       if (isHS) ++N_HS_total;
 
       float dz     = pf.dz();
       float dzErr  = pf.dzError();
       float dzSig  = (dzErr > 0) ? dz / dzErr : 999;
-
-      float t = pf.time();
-      float tErr = pf.timeError();
-      float dt = t - pvs_t_;
-      float dtSig = (tErr > 0) ? dt / tErr : 999;
-
-
+     
+       
       pf_dxy.push_back(pf.dxy());
       pf_dz.push_back(dz);
       pf_dzError.push_back(dzErr);
       pf_dzSig.push_back(dzSig);  
-      pf_time.push_back(pf.time());
-      pf_timeError.push_back(pf.timeError());
-      pf_dtSig.push_back(dtSig);
+
+      float t = pf.time();//nanoseconds
+      float tErr = pf.timeError();//nanoseconds
+      
+      bool isDisplaced = (std::abs(dz) > 0.05);//To keep displaced tracks
+      // === Robust validity check ===
+      bool hasValidTime = (
+          tErr > 0 &&
+          tErr < 0.2 &&     // Conservative threshold (30–50 ps typical)
+          std::abs(t) < 100 // sanity check: time should be < 100 ns
+      );
+
+      if (hasValidTime) {
+      //Safe to use time
+        float dt = t - pvs_t_;
+        float dtSig = (tErr > 0) ? dt / tErr : 999;
+
+        pf_time.push_back(pf.time());
+        pf_timeError.push_back(pf.timeError());
+        pf_dtSig.push_back(dtSig);
+  
+        // Optional: log debug info
+//        edm::LogVerbatim("JetTreeProducer::TimeDebug") 
+//          << "PF with eta=" << eta_ << ", pt=" << pt 
+//          << " has time=" << t << " ns, error=" << timeErr 
+//          << " ns, dtSig=" << dtSig;
+      } else {
+        // Invalid or missing time
+        pf_time.push_back(-999);
+        pf_timeError.push_back(999);
+        pf_dtSig.push_back(999);
+
+//        edm::LogVerbatim("JetTreeProducer::TimeDebug")
+//          << "PF with eta=" << eta_ << ", pt=" << pt 
+//          << " has INVALID time (time=" << t
+//          << ", error=" << tErr << ")";
+      }//end of if (hasValidTime) else
 
       // Common PseudoJet for dz-based clustering
       fastjet::PseudoJet pj(pf.px(), pf.py(), pf.pz(), pf.energy());
@@ -402,19 +435,20 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
       //dz:mean -3.1 X 10(-6), sigma:0.010cm
       //dzSig: mean -2.1X 10 (-6), sigma: 0.073
       fjInputs_raw.push_back(pj);//no cut (for control)
-      if (std::abs(dz) < 0.03 && dzSig < 0.2) {
+
+      if (keepAlways || (std::abs(dz) < 0.03 && dzSig < 0.2)) {
         fjInputs_tight.push_back(pj);
         ++N_selected_tight;
         if (isHS) ++N_selected_HS_tight;
       }
-      if (std::abs(dz) < 0.05 && dzSig < 0.5) {
+      if (keepAlways || (std::abs(dz) < 0.05 && dzSig < 0.5)) {
         fjInputs_loose.push_back(pj);
         ++N_selected_loose;
         if (isHS) ++N_selected_HS_loose;
       }
         // MTD-based selection
 //      if (pf.isTimeValid() && pf.timeError() < 0.05) {//pat::PackedCandidate does not have a method called .isTimeValid()
-      if (pf.timeError() > 0 && pf.timeError() < 0.05) {
+      if (hasValidTime && pf.timeError() < 0.05) {
         fastjet::PseudoJet pj_mtd(pf.px(), pf.py(), pf.pz(), pf.energy());
         pj_mtd.set_user_index(pf_for_MTD.size());//index back to PackedCandidate
         fjInputs_MTD.push_back(pj_mtd);
@@ -557,6 +591,7 @@ purity_loose_ = purity_loose;
   //Compute per-jet timing (pT-weighted average)
   for (const auto& jet : mtdJets) {
     float sumPt = 0.0, sumTime = 0.0, sumTime2 = 0.0;
+    bool isInMTD = (std::abs(eta_) <= 3.0);//MTD acceptance check
 
     for (const auto& idx : jet.constituents()) {
       int userIdx = idx.user_index();

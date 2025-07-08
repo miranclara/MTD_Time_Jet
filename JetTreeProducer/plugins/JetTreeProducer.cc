@@ -90,7 +90,8 @@ private:
   std::vector<float> jetAbsEta_loose_;
   std::vector<float> jetPt_MTD_, jetAbsEta_MTD_, jetTime_MTD_, jetTimeError_MTD_;//For MTD-based jet clustering
   std::vector<float> pf_vertex,pf_pt, pf_eta, pf_phi, pf_energy,pf_charge,pf_puppiWeight,pf_puppiWeightNoLep;//For <pat::PackedCandidate> collection
-std::vector<float> pf_dxy, pf_dz, pf_dzError, pf_dzSig, pf_time, pf_timeError, pf_dtSig;//For <pat::PackedCandidate> collection
+  std::vector<std::vector<unsigned int>> pf_indices_MTD_, pf_indices_tight_, pf_indices_loose_, pf_indices_pflaw_;//For <pat::PackedCandidate> collection
+  std::vector<float> pf_dxy, pf_dz, pf_dzError, pf_dzSig, pf_time, pf_timeError, pf_dtSig;//For <pat::PackedCandidate> collection
   std::vector<float> genparticles_z_;
 //  float jetResponse_4D;
 //  std::vector<PrimaryVertex> primaryVertices;
@@ -106,6 +107,7 @@ std::vector<float> pf_dxy, pf_dz, pf_dzError, pf_dzSig, pf_time, pf_timeError, p
 //  int pf_pdgId,pf_isTimeValid;//For <pat::PackedCandidate> collection
   std::vector<float> pf_vx, pf_vy, pf_vz;
   std::vector<int> pf_pdgId, pf_fromPV;
+  std::vector<bool> pf_passesTightCut,pf_passesLooseCut,pf_keepAlways,pf_keepDisplaced,pf_isInMTD,pf_isCharged,pf_hasValidTime;
   float efficiency_tight_, purity_tight_,efficiency_loose_, purity_loose_;
 
 };
@@ -134,14 +136,14 @@ void JetTreeProducer::beginJob() {
   tree_->Branch("genPt", &genPt_);
   tree_->Branch("jetResponse", &jetResponse_);
   tree_->Branch("jetAbsEta", &jetAbsEta_);  
-  tree_->Branch("jetResponse_PR_tight", &jetResponse_PR_pflaw_);
+  tree_->Branch("jetResponse_PR_pflaw", &jetResponse_PR_pflaw_);
   tree_->Branch("jetResponse_PR_tight", &jetResponse_PR_tight_);
   tree_->Branch("jetResponse_PR_loose", &jetResponse_PR_loose_);
-  tree_->Branch("jetAbsEta_tight", &jetAbsEta_pflaw_);
+  tree_->Branch("jetAbsEta_pflaw", &jetAbsEta_pflaw_);
   tree_->Branch("jetAbsEta_tight", &jetAbsEta_tight_);
   tree_->Branch("jetAbsEta_loose", &jetAbsEta_loose_);
-  tree_->Branch("jetPt_tight", &jetPt_pflaw_);
-  tree_->Branch("genPt_tight", &genPt_pflaw_);
+  tree_->Branch("jetPt_pflaw", &jetPt_pflaw_);
+  tree_->Branch("genPt_pflaw", &genPt_pflaw_);
   tree_->Branch("jetPt_tight", &jetPt_tight_);
   tree_->Branch("genPt_tight", &genPt_tight_);
   tree_->Branch("jetPt_loose", &jetPt_loose_);
@@ -189,6 +191,16 @@ void JetTreeProducer::beginJob() {
   tree_->Branch("pf_dzError", &pf_dzError);
   tree_->Branch("pf_dzSig", &pf_dzSig);
   tree_->Branch("pf_time", &pf_time);
+  tree_->Branch("pf_isInMTD", &pf_isInMTD);
+  tree_->Branch("pf_isCharged", &pf_isCharged);
+  tree_->Branch("pf_hasValidTime", &pf_hasValidTime);
+
+  tree_->Branch("pf_passesTightCut", &pf_passesTightCut);
+  tree_->Branch("pf_passesLooseCut", &pf_passesLooseCut);
+  tree_->Branch("pf_keepAlways",     &pf_keepAlways);
+  tree_->Branch("pf_keepDisplaced",  &pf_keepDisplaced);
+
+
   tree_->Branch("pf_timeError", &pf_timeError);
   tree_->Branch("pf_dtSig", &pf_dtSig);
   tree_->Branch("pf_pdgId", &pf_pdgId);
@@ -200,7 +212,12 @@ void JetTreeProducer::beginJob() {
   tree_->Branch("purity_tight", &purity_tight_);
   tree_->Branch("efficiency_loose", &efficiency_loose_);
   tree_->Branch("purity_loose", &purity_loose_);
+  tree_->Branch("pf_indices_pflaw", &pf_indices_pflaw_);
+  tree_->Branch("pf_indices_tight", &pf_indices_tight_);
+  tree_->Branch("pf_indices_loose", &pf_indices_loose_);
+  tree_->Branch("pf_indices_MTD", &pf_indices_MTD_);
 }
+
 
 void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) {
 //  pfparticles.clear();
@@ -223,7 +240,15 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   pf_vz.clear();
   pf_pdgId.clear();
   pf_fromPV.clear();
+  pf_isCharged.clear();
+  pf_hasValidTime.clear();
+ 
+  pf_passesTightCut.clear();
+  pf_passesLooseCut.clear();
+  pf_keepAlways.clear();
+  pf_keepDisplaced.clear();
   
+
   jetPt_.clear();
   genparticles_z_.clear();
   jetResponse_.clear();
@@ -358,6 +383,7 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   std::vector<const pat::PackedCandidate*> pf_for_MTD;
 //  primaryVertices.clear();
 
+  int pf_coll_index = 0;
   for (const auto& pf : pf_coll) {
     pf_pt.push_back(pf.pt());
     pf_eta.push_back(pf.eta());
@@ -372,10 +398,12 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
     pf_vz.push_back(pf.vertex().z());
     pf_pdgId.push_back(pf.pdgId());
     pf_fromPV.push_back(pf.fromPV());
-
+    
+    float eta = pf.eta(); 
     const bool isCharged = (pf.charge() != 0);
     const int fromPV = pf.fromPV();
     const bool keepAlways = (fromPV == 3);
+    pf_isCharged.push_back(isCharged);
 
     if (pf.hasTrackDetails() && isCharged) {
       bool isHS = (pf.fromPV() > 1);  // fromPV: 3 = tightly associated to PV
@@ -393,14 +421,21 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
 
       float t = pf.time();//nanoseconds
       float tErr = pf.timeError();//nanoseconds
+      bool isInMTD = (std::abs(eta) <= 3.0);
+      pf_isInMTD.push_back(isInMTD);
+
+      bool hasTimingInfo = (tErr > 0 && tErr < 0.2 && std::abs(t) < 100);
+//      bool hasValidTime = (isInMTD && hasTimingInfo);//double definiton of hasValidTime
       
       bool isDisplaced = (std::abs(dz) > 0.05);//To keep displaced tracks
       // === Robust validity check ===
       bool hasValidTime = (
+          isInMTD &&        //Ensures only trust time info(in MTD acceptance)
           tErr > 0 &&
           tErr < 0.2 &&     // Conservative threshold (30–50 ps typical)
           std::abs(t) < 100 // sanity check: time should be < 100 ns
       );
+      pf_hasValidTime.push_back(hasValidTime);//
 
       if (hasValidTime) {
       //Safe to use time
@@ -428,9 +463,19 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
 //          << ", error=" << tErr << ")";
       }//end of if (hasValidTime) else
 
+      //outside the MTD geometry &seem to have time info:Indicate a reconstruction or simulation artifact.
+      if (!isInMTD && hasTimingInfo) {
+//        edm::LogWarning("TimingCheck")
+//        << "PF with eta = " << eta
+//        << " has timing info (t = " << t << " ns, error = " << tErr << " ns)"
+//        << " outside MTD acceptance!";
+      }//end of if (!isInMTD && hasTimingInfo)
+
+
+
       // Common PseudoJet for dz-based clustering
       fastjet::PseudoJet pj(pf.px(), pf.py(), pf.pz(), pf.energy());
-      pj.set_user_index(0);//this one used for tight/loose only, Not used for MTD
+      pj.set_user_index(pf_coll_index);//link PF index,this one used for tight/loose only, Not used for MTD
    
       //dz:mean -3.1 X 10(-6), sigma:0.010cm
       //dzSig: mean -2.1X 10 (-6), sigma: 0.073
@@ -439,17 +484,25 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
       bool passesTightCut = (std::abs(dz) < 0.03 && dzSig < 0.2);//3D selection
       bool passesLooseCut = (std::abs(dz) < 0.05 && dzSig < 0.5);//3D selection
       bool keepDisplaced = (isDisplaced && hasValidTime);//4D selection
+      
+      pf_passesTightCut.push_back(passesTightCut);
+      pf_passesLooseCut.push_back(passesLooseCut);
+      pf_keepAlways.push_back(keepAlways);
+      pf_keepDisplaced.push_back(keepDisplaced);
+
 
       if (keepAlways || (std::abs(dz) < 0.03 && dzSig < 0.2)) {
 //      if (keepAlways || passesTightCut || keepDisplaced) {//To save track has large dz,4D selection
         fjInputs_tight.push_back(pj);
         ++N_selected_tight;
+        ++pf_coll_index;
         if (isHS) ++N_selected_HS_tight;
       }
       if (keepAlways || (std::abs(dz) < 0.05 && dzSig < 0.5)) {
 //      if (keepAlways || passesLooseCut || keepDisplaced) {//To save track has large dz, 4D selection
         fjInputs_loose.push_back(pj);
         ++N_selected_loose;
+        ++pf_coll_index;
         if (isHS) ++N_selected_HS_loose;
       }
         // MTD-based selection
@@ -470,6 +523,7 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
       pf_time.push_back(0);
       pf_timeError.push_back(1e6);
       pf_dtSig.push_back(1e6);
+      pf_isInMTD.push_back(false);
     } 
 
   }//End of for (const auto& pf : pf_coll)
@@ -529,9 +583,15 @@ purity_loose_ = purity_loose;
       return -1;
   };
 
+  // === Jet-PF matching index storage (after jet clustering, per category) ===
+  std::vector<std::vector<unsigned int>> pf_indices_raw_;
+  tree_->Branch("pf_indices_raw", &pf_indices_raw_);
+  pf_indices_raw_.clear();
+ 
   // no cut (for control)
   for (const auto& jet : pfrawJets) {
     float response = computeResponse(jet);
+    std::vector<unsigned int> pf_indices_this_jet;
     jetResponse_PR_pflaw_.push_back(response);
     jetAbsEta_pflaw_.push_back(std::abs(jet.eta()));
     jetPt_pflaw_.push_back(jet.pt());
@@ -548,9 +608,14 @@ purity_loose_ = purity_loose;
     }
     genPt_pflaw_.push_back((matchedGenJet) ? matchedGenJet->pt() : -1);
 
+    for (const auto& constituent : jet.constituents()) {
+      pf_indices_this_jet.push_back(constituent.user_index());
+    }        
+    pf_indices_raw_.push_back(pf_indices_this_jet);
     if (jetResponse_PR_tight_.size() >= 5) break;
   }//for (const auto& jet : pfrawJets)
 
+  pf_indices_tight_.clear();  // Clear before filling
   for (const auto& jet : tightJets) {
     float response = computeResponse(jet);
     jetResponse_PR_tight_.push_back(response);
@@ -569,10 +634,16 @@ purity_loose_ = purity_loose;
     }
     genPt_tight_.push_back((matchedGenJet) ? matchedGenJet->pt() : -1);
 
-    if (jetResponse_PR_tight_.size() >= 5) break;
+    // PF-jet matching index (constituent PF indices)
+    std::vector<unsigned int> pf_indices_this_jet;
+    for (const auto& constituent : jet.constituents()) {
+      pf_indices_this_jet.push_back(constituent.user_index());
+    }
+    pf_indices_tight_.push_back(pf_indices_this_jet);
+      if (jetResponse_PR_tight_.size() >= 5) break;
   }//for (const auto& jet : tightJets)
 
-
+  pf_indices_loose_.clear();  // Clear before filling 
   for (const auto& jet : looseJets) {
     float response = computeResponse(jet);
     jetResponse_PR_loose_.push_back(response);
@@ -591,14 +662,22 @@ purity_loose_ = purity_loose;
     }
     genPt_loose_.push_back((matchedGenJet) ? matchedGenJet->pt() : -1);
 
+    // PF-jet matching index (constituent PF indices)
+    std::vector<unsigned int> pf_indices_this_jet;
+    for (const auto& constituent : jet.constituents()) {
+      pf_indices_this_jet.push_back(constituent.user_index());
+    }  
+    pf_indices_loose_.push_back(pf_indices_this_jet);
     if (jetResponse_PR_loose_.size() >= 5) break;
   }//End of for (const auto& jet : looseJets)
 
   //Compute per-jet timing (pT-weighted average)
+  pf_indices_MTD_.clear();  // Clear before filling
   for (const auto& jet : mtdJets) {
     float sumPt = 0.0, sumTime = 0.0, sumTime2 = 0.0;
-    bool isInMTD = (std::abs(eta_) <= 3.0);//MTD acceptance check
-
+//    bool isInMTD = (std::abs(eta_) <= 3.0);//MTD acceptance check
+//    pf_isInMTD.push_back(isInMTD);  // store in tree
+    
     for (const auto& idx : jet.constituents()) {
       int userIdx = idx.user_index();
       if (userIdx >= 0 && userIdx < static_cast<int>(pf_for_MTD.size())) {
@@ -617,6 +696,12 @@ purity_loose_ = purity_loose;
     jetTime_MTD_.push_back(avgTime);
     jetTimeError_MTD_.push_back(rmsTime);
 
+  // PF-jet matching index (constituent PF indices)
+  std::vector<unsigned int> pf_indices_this_jet;
+  for (const auto& constituent : jet.constituents()) {
+    pf_indices_this_jet.push_back(constituent.user_index());
+  }
+  pf_indices_MTD_.push_back(pf_indices_this_jet);
     if (jetPt_MTD_.size() >= 5) break;
   }//End of for (const auto& jet : mtdJets)
 

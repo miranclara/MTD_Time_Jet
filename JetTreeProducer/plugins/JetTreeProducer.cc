@@ -76,21 +76,21 @@ private:
   std::vector<float> jetResponse_;
   std::vector<float> jetAbsEta_;
 //  float jetResponse_ULv15;
-  std::vector<float> jetPt_pflaw_;
-  std::vector<float> genPt_pflaw_;
+  std::vector<float> jetPt_pfraw_;
+  std::vector<float> genPt_pfraw_;
   std::vector<float> jetPt_tight_;
   std::vector<float> genPt_tight_;
   std::vector<float> jetPt_loose_;
   std::vector<float> genPt_loose_;
-  std::vector<float> jetResponse_PR_pflaw_;
+  std::vector<float> jetResponse_PR_pfraw_;
   std::vector<float> jetResponse_PR_tight_;
   std::vector<float> jetResponse_PR_loose_;
-  std::vector<float> jetAbsEta_pflaw_;
+  std::vector<float> jetAbsEta_pfraw_;
   std::vector<float> jetAbsEta_tight_;
   std::vector<float> jetAbsEta_loose_;
   std::vector<float> jetPt_MTD_, jetAbsEta_MTD_, jetTime_MTD_, jetTimeError_MTD_;//For MTD-based jet clustering
   std::vector<float> pf_vertex,pf_pt, pf_eta, pf_phi, pf_energy,pf_charge,pf_puppiWeight,pf_puppiWeightNoLep;//For <pat::PackedCandidate> collection
-  std::vector<std::vector<unsigned int>> pf_indices_MTD_, pf_indices_tight_, pf_indices_loose_, pf_indices_pflaw_;//For <pat::PackedCandidate> collection
+  std::vector<std::vector<unsigned int>> pf_indices_MTD_, pf_indices_tight_, pf_indices_loose_, pf_indices_pfraw_;//For <pat::PackedCandidate> collection
   std::vector<float> pf_dxy, pf_dz, pf_dzError, pf_dzSig, pf_time, pf_timeError, pf_dtSig;//For <pat::PackedCandidate> collection
   std::vector<float> genparticles_z_;
 //  float jetResponse_4D;
@@ -136,14 +136,14 @@ void JetTreeProducer::beginJob() {
   tree_->Branch("genPt", &genPt_);
   tree_->Branch("jetResponse", &jetResponse_);
   tree_->Branch("jetAbsEta", &jetAbsEta_);  
-  tree_->Branch("jetResponse_PR_pflaw", &jetResponse_PR_pflaw_);
+  tree_->Branch("jetResponse_PR_pfraw", &jetResponse_PR_pfraw_);
   tree_->Branch("jetResponse_PR_tight", &jetResponse_PR_tight_);
   tree_->Branch("jetResponse_PR_loose", &jetResponse_PR_loose_);
-  tree_->Branch("jetAbsEta_pflaw", &jetAbsEta_pflaw_);
+  tree_->Branch("jetAbsEta_pfraw", &jetAbsEta_pfraw_);
   tree_->Branch("jetAbsEta_tight", &jetAbsEta_tight_);
   tree_->Branch("jetAbsEta_loose", &jetAbsEta_loose_);
-  tree_->Branch("jetPt_pflaw", &jetPt_pflaw_);
-  tree_->Branch("genPt_pflaw", &genPt_pflaw_);
+  tree_->Branch("jetPt_pfraw", &jetPt_pfraw_);
+  tree_->Branch("genPt_pfraw", &genPt_pfraw_);
   tree_->Branch("jetPt_tight", &jetPt_tight_);
   tree_->Branch("genPt_tight", &genPt_tight_);
   tree_->Branch("jetPt_loose", &jetPt_loose_);
@@ -212,7 +212,7 @@ void JetTreeProducer::beginJob() {
   tree_->Branch("purity_tight", &purity_tight_);
   tree_->Branch("efficiency_loose", &efficiency_loose_);
   tree_->Branch("purity_loose", &purity_loose_);
-  tree_->Branch("pf_indices_pflaw", &pf_indices_pflaw_);
+  tree_->Branch("pf_indices_pfraw", &pf_indices_pfraw_);
   tree_->Branch("pf_indices_tight", &pf_indices_tight_);
   tree_->Branch("pf_indices_loose", &pf_indices_loose_);
   tree_->Branch("pf_indices_MTD", &pf_indices_MTD_);
@@ -243,6 +243,9 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   pf_isCharged.clear();
   pf_hasValidTime.clear();
  
+  pf_indices_pfraw_.clear();
+  pf_indices_tight_.clear();
+  pf_indices_loose_.clear();
   pf_passesTightCut.clear();
   pf_passesLooseCut.clear();
   pf_keepAlways.clear();
@@ -253,15 +256,15 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   genparticles_z_.clear();
   jetResponse_.clear();
   jetAbsEta_.clear(); 
-  jetPt_pflaw_.clear();
+  jetPt_pfraw_.clear();
   jetPt_tight_.clear();
   genPt_tight_.clear();
   jetPt_loose_.clear();
   genPt_loose_.clear();
-  jetResponse_PR_pflaw_.clear();
+  jetResponse_PR_pfraw_.clear();
   jetResponse_PR_tight_.clear();
   jetResponse_PR_loose_.clear();
-  jetAbsEta_pflaw_.clear();
+  jetAbsEta_pfraw_.clear();
   jetAbsEta_tight_.clear();
   jetAbsEta_loose_.clear();
 
@@ -584,17 +587,17 @@ purity_loose_ = purity_loose;
   };
 
   // === Jet-PF matching index storage (after jet clustering, per category) ===
-  std::vector<std::vector<unsigned int>> pf_indices_raw_;
-  tree_->Branch("pf_indices_raw", &pf_indices_raw_);
-  pf_indices_raw_.clear();
+//  std::vector<std::vector<unsigned int>> pf_indices_raw_;
+//  tree_->Branch("pf_indices_raw", &pf_indices_raw_);
+//  pf_indices_raw_.clear();
  
   // no cut (for control)
   for (const auto& jet : pfrawJets) {
     float response = computeResponse(jet);
     std::vector<unsigned int> pf_indices_this_jet;
-    jetResponse_PR_pflaw_.push_back(response);
-    jetAbsEta_pflaw_.push_back(std::abs(jet.eta()));
-    jetPt_pflaw_.push_back(jet.pt());
+    jetResponse_PR_pfraw_.push_back(response);
+    jetAbsEta_pfraw_.push_back(std::abs(jet.eta()));
+    jetPt_pfraw_.push_back(jet.pt());
 
     //GenJet matching logic2: get matching GenJet pT
     const reco::GenJet* matchedGenJet = nullptr;
@@ -606,12 +609,12 @@ purity_loose_ = purity_loose;
         matchedGenJet = &genJet;
       }
     }
-    genPt_pflaw_.push_back((matchedGenJet) ? matchedGenJet->pt() : -1);
+    genPt_pfraw_.push_back((matchedGenJet) ? matchedGenJet->pt() : -1);
 
     for (const auto& constituent : jet.constituents()) {
       pf_indices_this_jet.push_back(constituent.user_index());
     }        
-    pf_indices_raw_.push_back(pf_indices_this_jet);
+    pf_indices_pfraw_.push_back(pf_indices_this_jet);
     if (jetResponse_PR_tight_.size() >= 5) break;
   }//for (const auto& jet : pfrawJets)
 

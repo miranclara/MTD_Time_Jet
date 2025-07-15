@@ -23,7 +23,8 @@ config.Data.inputDBS = 'global'
 config.Data.splitting = 'Automatic'
 config.Data.unitsPerJob = 180
 
-config.JobType.outputFiles = ['jetTree_QCD_150PU.root']
+#config.JobType.outputFiles = ['jetTree_QCD_noPU.root']
+config.JobType.outputFiles = ['jetTree_QCD_200PU.root']
 
 config.Data.outLFNDirBase = '/store/user/mrkim/CRAB/'#CRAB maps your LFN (like /store/user/mrkim/...) to CERNBox's actual EOS location using an internal catalog
 #config.Data.outLFNDirBase = '/eos/user/m/mrkim/CRAB/'#Wrong for CERNBOX,Reason is: Incorrect 'Data.outLFNDirBase' parameter <class 'str'> /eos/user/m/mrkim/CRAB/,Error Id: b369f89030c091d72f93273b7f7f43ee

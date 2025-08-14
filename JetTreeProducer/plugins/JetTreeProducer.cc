@@ -72,27 +72,88 @@ private:
 
 
   TTree* tree_;
-  std::vector<float> jetPt_, genPt_;
-  std::vector<float> jetResponse_;
-  std::vector<float> jetAbsEta_;
+
+  std::vector<float> jetPt_puppi_all_;
+  std::vector<float> jetAbsEta_puppi_all_;
+  std::vector<float> jetResponse_PR_puppi_all_;
+  std::vector<float> genPt_puppi_all_;
+  std::vector<float> puFracPt_puppi_all_;
+  std::vector<float> puFracCount_puppi_all_;
+
+  std::vector<float> jetPt_puppi_5leading_;
+  std::vector<float> jetAbsEta_puppi_5leading_;
+  std::vector<float> jetResponse_PR_puppi_5leading_;
+  std::vector<float> genPt_puppi_5leading_;
+  std::vector<float> puFracPt_puppi_5leading_;
+  std::vector<float> puFracCount_puppi_5leading_;
+
 //  float jetResponse_ULv15;
-  std::vector<float> jetPt_pfraw_;
-  std::vector<float> genPt_pfraw_;
-  std::vector<float> jetPt_tight_;
-  std::vector<float> genPt_tight_;
-  std::vector<float> jetPt_loose_;
-  std::vector<float> genPt_loose_;
-  std::vector<float> jetResponse_PR_pfraw_;
-  std::vector<float> jetResponse_PR_tight_;
-  std::vector<float> jetResponse_PR_loose_;
-  std::vector<float> jetAbsEta_pfraw_;
-  std::vector<float> jetAbsEta_tight_;
-  std::vector<float> jetAbsEta_loose_;
-  std::vector<float> jetPt_MTD_, jetAbsEta_MTD_, jetTime_MTD_, jetTimeError_MTD_;//For MTD-based jet clustering
+  std::vector<float> jetPt_pfraw_all_;
+  std::vector<float> genPt_pfraw_all_;
+  std::vector<float> jetResponse_PR_pfraw_all_;
+  std::vector<float> jetAbsEta_pfraw_all_;
+  std::vector<float> puFracPt_pfraw_all_;
+  std::vector<float> puFracCount_pfraw_all_;
+
+  std::vector<float> jetPt_pfraw_5leading_;
+  std::vector<float> genPt_pfraw_5leading_;
+  std::vector<float> jetResponse_PR_pfraw_5leading_;
+  std::vector<float> jetAbsEta_pfraw_5leading_;
+  std::vector<float> puFracPt_pfraw_5leading_;
+  std::vector<float> puFracCount_pfraw_5leading_;
+  
+  std::vector<float> jetPt_tight_all_;
+  std::vector<float> genPt_tight_all_;
+  std::vector<float> jetResponse_PR_tight_all_;
+  std::vector<float> jetAbsEta_tight_all_;
+  std::vector<float> puFracPt_tight_all_;
+  std::vector<float> puFracCount_tight_all_;
+ 
+  std::vector<float> jetPt_tight_5leading_;
+  std::vector<float> genPt_tight_5leading_;
+  std::vector<float> jetResponse_PR_tight_5leading_;
+  std::vector<float> jetAbsEta_tight_5leading_;
+  std::vector<float> puFracPt_tight_5leading_;
+  std::vector<float> puFracCount_tight_5leading_;
+  
+  std::vector<float> jetPt_loose_all_;
+  std::vector<float> genPt_loose_all_;
+  std::vector<float> jetResponse_PR_loose_all_;
+  std::vector<float> jetAbsEta_loose_all_;
+  std::vector<float> puFracPt_loose_all_;
+  std::vector<float> puFracCount_loose_all_;
+  
+  std::vector<float> jetPt_loose_5leading_;
+  std::vector<float> genPt_loose_5leading_;
+  std::vector<float> jetResponse_PR_loose_5leading_;
+  std::vector<float> jetAbsEta_loose_5leading_;
+  std::vector<float> puFracPt_loose_5leading_;
+  std::vector<float> puFracCount_loose_5leading_;
+
+  //For MTD-based jet clustering
+  std::vector<float> jetPt_MTD_all_;
+  std::vector<float> genPt_MTD_all_;
+  std::vector<float> jetResponse_PR_MTD_all_;
+  std::vector<float> jetAbsEta_MTD_all_;
+  std::vector<float> puFracPt_MTD_all_;
+  std::vector<float> puFracCount_MTD_all_;
+  std::vector<float> jetTime_MTD_all_;
+  std::vector<float> jetTimeError_MTD_all_;
+
+  std::vector<float> jetPt_MTD_5leading_;
+  std::vector<float> genPt_MTD_5leading_;
+  std::vector<float> jetResponse_PR_MTD_5leading_;
+  std::vector<float> jetAbsEta_MTD_5leading_;
+  std::vector<float> puFracPt_MTD_5leading_;
+  std::vector<float> puFracCount_MTD_5leading_;
+  std::vector<float> jetTime_MTD_5leading_;
+  std::vector<float> jetTimeError_MTD_5leading_;
+
   std::vector<float> pf_vertex,pf_pt, pf_eta, pf_phi, pf_energy,pf_charge,pf_puppiWeight,pf_puppiWeightNoLep;//For <pat::PackedCandidate> collection
   std::vector<std::vector<unsigned int>> pf_indices_MTD_, pf_indices_tight_, pf_indices_loose_, pf_indices_pfraw_;//For <pat::PackedCandidate> collection
   std::vector<float> pf_dxy, pf_dz, pf_dzError, pf_dzSig, pf_time, pf_timeError, pf_dtSig;//For <pat::PackedCandidate> collection
   std::vector<float> genparticles_z_;
+
 //  float jetResponse_4D;
 //  std::vector<PrimaryVertex> primaryVertices;
 
@@ -110,6 +171,33 @@ private:
   std::vector<bool> pf_passesTightCut,pf_passesLooseCut,pf_keepAlways,pf_keepDisplaced,pf_isInMTD,pf_isCharged,pf_hasValidTime;
   float efficiency_tight_, purity_tight_,efficiency_loose_, purity_loose_;
 };
+
+  std::vector<int> pf_isHS; // 1 = HS, 0 = PU, -1 = unmatched
+//  std::vector<float> puFrac_pfraw_, puFrac_tight_, puFrac_loose_,puFrac_MTD_;;
+      
+  int totalRecoJets = 0;
+  int totalPUJets = 0;
+  float puJetFraction_all = 0;
+
+  int totalRecoJets_puppi = 0; 
+  int totalPUJets_puppi = 0; 
+  float  puJetFraction_puppi_all= 0;
+
+  int totalRecoJets_pfraw = 0; 
+  int totalPUJets_pfraw = 0; 
+  float puJetFraction_pfraw_all =0;
+
+  int totalRecoJets_tight = 0; 
+  int totalPUJets_tight = 0; 
+  float puJetFraction_tight_all= 0;
+
+  int totalRecoJets_loose = 0 ;
+  int totalPUJets_loose = 0 ; 
+  float puJetFraction_loose_all =0; 
+
+  int totalRecoJets_MTD = 0; 
+  int totalPUJets_MTD = 0; 
+  float puJetFraction_MTD_all =0;
 
 JetTreeProducer::JetTreeProducer(const edm::ParameterSet& iConfig)//:
 //	: doAllPFParticles(iConfig.getParameter<bool>("doAllPFParticles"))
@@ -131,30 +219,81 @@ void JetTreeProducer::beginJob() {
   edm::Service<TFileService> fs_;
   tree_ = fs_->make<TTree>("JetTree", "JetTree");
 
-  tree_->Branch("jetPt", &jetPt_);
-  tree_->Branch("genPt", &genPt_);
-  tree_->Branch("jetResponse", &jetResponse_);
-  tree_->Branch("jetAbsEta", &jetAbsEta_);  
-  tree_->Branch("jetResponse_PR_pfraw", &jetResponse_PR_pfraw_);
-  tree_->Branch("jetResponse_PR_tight", &jetResponse_PR_tight_);
-  tree_->Branch("jetResponse_PR_loose", &jetResponse_PR_loose_);
-  tree_->Branch("jetAbsEta_pfraw", &jetAbsEta_pfraw_);
-  tree_->Branch("jetAbsEta_tight", &jetAbsEta_tight_);
-  tree_->Branch("jetAbsEta_loose", &jetAbsEta_loose_);
-  tree_->Branch("jetPt_pfraw", &jetPt_pfraw_);
-  tree_->Branch("genPt_pfraw", &genPt_pfraw_);
-  tree_->Branch("jetPt_tight", &jetPt_tight_);
-  tree_->Branch("genPt_tight", &genPt_tight_);
-  tree_->Branch("jetPt_loose", &jetPt_loose_);
-  tree_->Branch("genPt_loose", &genPt_loose_);
+  tree_->Branch("jetPt_puppi_all", &jetPt_puppi_all_);
+  tree_->Branch("genPt_puppi_all", &genPt_puppi_all_);
+  tree_->Branch("jetResponse_puppi_all", &jetResponse_PR_puppi_all_);
+  tree_->Branch("jetAbsEta_puppi_all", &jetAbsEta_puppi_all_);  
+  tree_->Branch("puFracPt_puppi_all_", &puFracPt_puppi_all_);
+  tree_->Branch("puFracCount_puppi_all_", &puFracCount_puppi_all_);  
+  
+  tree_->Branch("jetPt_puppi_5leading", &jetPt_puppi_5leading_);
+  tree_->Branch("genPt_puppi_5leading", &genPt_puppi_5leading_);
+  tree_->Branch("jetResponse_puppi_5leading", &jetResponse_PR_puppi_5leading_);
+  tree_->Branch("jetAbsEta_puppi_5leading", &jetAbsEta_puppi_5leading_);  
+  tree_->Branch("puFracPt_puppi_5leading", &puFracPt_puppi_5leading_);
+  tree_->Branch("puFracCount_puppi_5leading", &puFracCount_puppi_5leading_);  
+  
+  tree_->Branch("jetResponse_PR_pfraw_all", &jetResponse_PR_pfraw_all_);
+  tree_->Branch("jetPt_pfraw_all", &jetPt_pfraw_all_);
+  tree_->Branch("genPt_pfraw_all", &genPt_pfraw_all_);
+  tree_->Branch("jetAbsEta_pfraw_all", &jetAbsEta_pfraw_all_); 
+  tree_->Branch("puFracPt_pfraw_all", &puFracPt_pfraw_all_);
+  tree_->Branch("puFracCount_pfraw_all", &puFracCount_pfraw_all_);  
+ 
+  tree_->Branch("jetResponse_PR_pfraw_5leading", &jetResponse_PR_pfraw_5leading_);
+  tree_->Branch("jetPt_pfraw_5leading", &jetPt_pfraw_5leading_);
+  tree_->Branch("genPt_pfraw_5leading", &genPt_pfraw_5leading_);
+  tree_->Branch("jetAbsEta_pfraw_5leading", &jetAbsEta_pfraw_5leading_); 
+  tree_->Branch("puFracPt_pfraw_5leading", &puFracPt_pfraw_5leading_);
+  tree_->Branch("puFracCount_pfraw_5leading", &puFracCount_pfraw_5leading_);  
 
-  tree_->Branch("jetPt_MTD", &jetPt_MTD_);
-  tree_->Branch("jetAbsEta_MTD", &jetAbsEta_MTD_);
-  tree_->Branch("jetTime_MTD", &jetTime_MTD_);
-  tree_->Branch("jetTimeError_MTD", &jetTimeError_MTD_);
+  tree_->Branch("jetPt_tight_all", &jetPt_tight_all_);
+  tree_->Branch("genPt_tight_all", &genPt_tight_all_);
+  tree_->Branch("jetResponse_PR_tight_all", &jetResponse_PR_tight_all_);
+  tree_->Branch("jetAbsEta_tight_all", &jetAbsEta_tight_all_);
+  tree_->Branch("puFracPt_tight_all", &puFracPt_tight_all_);
+  tree_->Branch("puFracCount_tight_all", &puFracCount_tight_all_);  
+  
+  tree_->Branch("jetPt_tight_5leading", &jetPt_tight_5leading_);
+  tree_->Branch("genPt_tight_5leading", &genPt_tight_5leading_);
+  tree_->Branch("jetResponse_PR_tight_5leading", &jetResponse_PR_tight_5leading_);
+  tree_->Branch("jetAbsEta_tight_5leading", &jetAbsEta_tight_5leading_);
+  tree_->Branch("puFracPt_tight_5leading", &puFracPt_tight_5leading_);
+  tree_->Branch("puFracCount_tight_5leading", &puFracCount_tight_5leading_);  
+
+  tree_->Branch("jetResponse_PR_loose_all", &jetResponse_PR_loose_all_);
+  tree_->Branch("jetAbsEta_loose_all", &jetAbsEta_loose_all_);
+  tree_->Branch("jetPt_loose_all", &jetPt_loose_all_);
+  tree_->Branch("genPt_loose_all", &genPt_loose_all_);
+  tree_->Branch("puFracPt_loose_all", &puFracPt_tight_all_);
+  tree_->Branch("puFracCount_loose_all", &puFracCount_tight_all_);  
+
+  tree_->Branch("jetResponse_PR_loose_5leading", &jetResponse_PR_loose_5leading_);
+  tree_->Branch("jetAbsEta_loose_5leading", &jetAbsEta_loose_5leading_);
+  tree_->Branch("jetPt_loose_5leading", &jetPt_loose_5leading_);
+  tree_->Branch("genPt_loose_5leading", &genPt_loose_5leading_);
+  tree_->Branch("puFracPt_loose_5leading", &puFracPt_tight_5leading_);
+  tree_->Branch("puFracCount_loose_5leading", &puFracCount_tight_5leading_);  
+
+  tree_->Branch("jetResponse_PR_MTD_all", &jetResponse_PR_MTD_all_);
+  tree_->Branch("jetAbsEta_MTD_all", &jetAbsEta_MTD_all_);
+  tree_->Branch("jetPt_MTD_all", &jetPt_MTD_all_);
+  tree_->Branch("genPt_MTD_all", &genPt_MTD_all_);
+  tree_->Branch("jetTime_MTD_all", &jetTime_MTD_all_);
+  tree_->Branch("jetTimeError_MTD_all", &jetTimeError_MTD_all_);
+  tree_->Branch("puFracPt_MTD_all", &puFracPt_MTD_all_);
+  tree_->Branch("puFracCount_MTD_all", &puFracCount_MTD_all_);  
+
+  tree_->Branch("jetResponse_PR_MTD_5leading", &jetResponse_PR_MTD_5leading_);
+  tree_->Branch("jetAbsEta_MTD_5leading", &jetAbsEta_MTD_5leading_);
+  tree_->Branch("jetPt_MTD_5leading", &jetPt_MTD_5leading_);
+  tree_->Branch("genPt_MTD_5leading", &genPt_MTD_5leading_);
+  tree_->Branch("jetTime_MTD_5leading", &jetTime_MTD_5leading_);
+  tree_->Branch("jetTimeError_MTD_5leading", &jetTimeError_MTD_5leading_);
+  tree_->Branch("puFracPt_MTD_5leading", &puFracPt_MTD_5leading_);
+  tree_->Branch("puFracCount_MTD_5leading", &puFracCount_MTD_5leading_);  
 
 //  tree_->Branch("primaryVertices", &primaryVertices);
-
 
    // Branches for jet kinematics 
   tree_->Branch("pt", &pt_, "pt/F");
@@ -200,7 +339,6 @@ void JetTreeProducer::beginJob() {
   tree_->Branch("pf_keepAlways",     &pf_keepAlways);
   tree_->Branch("pf_keepDisplaced",  &pf_keepDisplaced);
 
-
   tree_->Branch("pf_timeError", &pf_timeError);
   tree_->Branch("pf_dtSig", &pf_dtSig);
   tree_->Branch("pf_pdgId", &pf_pdgId);
@@ -216,8 +354,227 @@ void JetTreeProducer::beginJob() {
   tree_->Branch("pf_indices_tight", &pf_indices_tight_);
   tree_->Branch("pf_indices_loose", &pf_indices_loose_);
   tree_->Branch("pf_indices_MTD", &pf_indices_MTD_);
+  
+  tree_->Branch("pf_isHS", &pf_isHS);
+//  tree_->Branch("puFrac_pfraw", &puFrac_pfraw_);
+//  tree_->Branch("puFrac_tight", &puFrac_tight_);
+//  tree_->Branch("puFrac_loose", &puFrac_loose_);
+//  tree_->Branch("puFrac_MTD", &puFrac_MTD_);
+
+}//End of void JetTreeProducer::beginJob()
+
+// ===================
+//  Helper Functions
+// ===================
+// ======================================================
+// Helper 0: Extract PF indices from pat::Jet
+// ======================================================
+inline std::vector<unsigned int>
+getPFIndicesFromPatJet(const pat::Jet& jet) {
+    std::vector<unsigned int> pf_indices_this_jet;
+    pf_indices_this_jet.reserve(jet.numberOfDaughters());
+
+    for (const auto& candPtr : jet.getJetConstituents()) {
+        // Try casting to PackedCandidate
+        const auto* pfcand = dynamic_cast<const pat::PackedCandidate*>(candPtr.get());
+        if (!pfcand) continue;
+
+        // Use key() as PF index (aligned with event-level PF collection)
+        unsigned int pfIdx = candPtr.key();
+        pf_indices_this_jet.push_back(pfIdx);
+
+        // If you have a custom userInt index stored earlier:
+        // unsigned int pfIdx = pfcand->userInt("pfIdx");
+    }
+
+    return pf_indices_this_jet;
 }
 
+// ======================================================
+// Helper 00: Extract PF indices from fastjet::PseudoJet
+// ======================================================
+inline std::vector<unsigned int>
+getPFIndicesFromPseudoJet(const fastjet::PseudoJet& fjJet) {
+    std::vector<unsigned int> pf_indices_this_jet;
+    pf_indices_this_jet.reserve(fjJet.constituents().size());
+
+    for (const auto& constituent : fjJet.constituents()) {
+        int pfIdx = constituent.user_index();
+        if (pfIdx < 0) continue;
+        pf_indices_this_jet.push_back(static_cast<unsigned int>(pfIdx));
+    }
+
+    return pf_indices_this_jet;
+}
+
+//---Helper Function1:  PF candidate  ↔   GenParticle matching---
+//Find the generator-level particle that this specific PF candidate came from.It works at the constituent particle level, not jet level.
+//Adjust minDR or relax the pdgId requirement if needed.
+const reco::GenParticle* matchToGen(const pat::PackedCandidate& pf,
+                                    const std::vector<reco::GenParticle>& genParticles) {
+  float minDR = 0.05; // tighter matching for individual particles
+  const reco::GenParticle* bestMatch = nullptr;
+
+  for (const auto& gen : genParticles) {
+    // Require same particle type (optional: comment out if you want looser matching)
+    if (std::abs(pf.pdgId()) != std::abs(gen.pdgId())) continue;
+
+    float dR = reco::deltaR(pf.eta(), pf.phi(), gen.eta(), gen.phi());
+    if (dR < minDR) {
+      minDR = dR;
+      bestMatch = &gen;
+    }
+  }
+  return bestMatch;
+}
+
+
+// ---Helper Function2: Jet ↔ GenJet matching ---
+inline const reco::GenJet* matchGenJet(const pat::Jet& recoJet,
+                                       const std::vector<reco::GenJet>& genJets,
+                                       float maxDR = 0.3) {
+    const reco::GenJet* bestMatch = nullptr;
+    float minDR = maxDR;
+    for (const auto& genJet : genJets) {
+        float dR = reco::deltaR(recoJet.eta(), recoJet.phi(), genJet.eta(), genJet.phi());
+        if (dR < minDR) {
+            minDR = dR;
+            bestMatch = &genJet;
+        }
+    }
+    return bestMatch;
+}
+
+inline const reco::GenJet* matchGenJet(const fastjet::PseudoJet& fjJet,
+                                       const std::vector<reco::GenJet>& genJets,
+                                       float maxDR = 0.3) {
+    const reco::GenJet* bestMatch = nullptr;
+    float minDR = maxDR;
+    for (const auto& genJet : genJets) {
+        float dR = reco::deltaR(fjJet.eta(), fjJet.phi(), genJet.eta(), genJet.phi());
+        if (dR < minDR) {
+            minDR = dR;
+            bestMatch = &genJet;
+        }
+    }
+    return bestMatch;
+}
+
+
+// --- Helper Function3: Jet ↔ GenJet Jetresponse calcultation---
+inline float computeResponse(const pat::Jet& recoJet,
+                              const reco::GenJet* matchedGenJet) {
+    if (!matchedGenJet || matchedGenJet->pt() <= 0) return -1.0f;
+    return recoJet.pt() / matchedGenJet->pt();
+}
+
+inline float computeResponse(const fastjet::PseudoJet& fjJet,
+                              const reco::GenJet* matchedGenJet) {
+    if (!matchedGenJet || matchedGenJet->pt() <= 0) return -1.0f;
+    return fjJet.pt() / matchedGenJet->pt();
+}
+
+/*
+//OLD VERSION: GenJet matching logic1: loops over GenJets, finds closest in ΔR,find the closest GenJet to a given reco jet and compute jet response pT_reco / pT_gen, jet-level (whole jet as a single object) 
+  auto computeResponse = [&](const fastjet::PseudoJet& recoJet) -> float {
+    const reco::GenJet* matchedGenJet = nullptr;
+    float minDR = 0.3;
+    for (const auto& genJet : *genJets) {
+      float dR = reco::deltaR(recoJet.eta(), recoJet.phi(), genJet.eta(), genJet.phi());
+      if (dR < minDR) {
+        minDR = dR;
+        matchedGenJet = &genJet;
+      }
+    }
+    if (matchedGenJet && matchedGenJet->pt() > 0){
+      return recoJet.pt() / matchedGenJet->pt();
+      
+    }
+      return -1;
+  };
+*/
+
+// --- Helper Function4:PU content inside jet ---
+struct PUContent {
+    float fracCount;
+    float fracPt;
+    int nHS;
+    int nPU;
+    int nUnmatched;
+};
+
+// =====================================================
+// PU content calculation for pat::Jet
+// =====================================================
+inline PUContent computePUContent(const pat::Jet& recoJet,
+                                  const std::vector<float>& pf_pt,
+                                  const std::vector<int>& pf_isHS) {
+    int nPU = 0, nHS = 0, nUnmatched = 0;
+    float sumPtAll = 0.0f, sumPtPU = 0.0f;
+
+    for (size_t i = 0; i < recoJet.numberOfDaughters(); ++i) {
+        const auto& candPtr = recoJet.daughterPtr(i); // edm::Ptr to PF candidate
+        int pfIdx = candPtr.key(); // Get PF candidate index
+        if (pfIdx < 0 || pfIdx >= static_cast<int>(pf_pt.size())) continue;
+
+        float pfpT = pf_pt[pfIdx];
+        sumPtAll += pfpT;
+
+        int isHSflag = pf_isHS[pfIdx];
+        if (isHSflag == 1) {
+            ++nHS;
+        } else if (isHSflag == 0) {
+            ++nPU;
+            sumPtPU += pfpT;
+        } else {
+            ++nUnmatched;
+        }
+    }
+
+    PUContent result;
+    result.fracCount = (nPU + nHS > 0) ? static_cast<float>(nPU) / (nPU + nHS) : -1.0f;
+    result.fracPt    = (sumPtAll > 0) ? sumPtPU / sumPtAll : -1.0f;
+    result.nHS       = nHS;
+    result.nPU       = nPU;
+    result.nUnmatched= nUnmatched;
+    return result;
+}
+
+// =====================================================
+// PU content calculation for fastjet::PseudoJet
+// =====================================================
+inline PUContent computePUContent(const fastjet::PseudoJet& fjJet,
+                                  const std::vector<float>& pf_pt,
+                                  const std::vector<int>& pf_isHS) {
+    int nPU = 0, nHS = 0, nUnmatched = 0;
+    float sumPtAll = 0.0f, sumPtPU = 0.0f;
+
+    for (const auto& constituent : fjJet.constituents()) {
+        int pfIdx = constituent.user_index(); // index into pf_pt / pf_isHS
+        if (pfIdx < 0 || pfIdx >= static_cast<int>(pf_pt.size())) continue;
+
+        float pfpT = pf_pt[pfIdx];
+        sumPtAll += pfpT;
+
+        int isHSflag = pf_isHS[pfIdx];
+        if (isHSflag == 1) {
+            ++nHS;
+        } else if (isHSflag == 0) {
+            ++nPU;
+            sumPtPU += pfpT;
+        } else {
+            ++nUnmatched;
+        }
+    }
+
+    PUContent result;
+    result.fracCount = (nPU + nHS > 0) ? static_cast<float>(nPU) / (nPU + nHS) : -1.0f;
+    result.fracPt    = (sumPtAll > 0) ? sumPtPU / sumPtAll : -1.0f;
+    result.nHS       = nHS;
+    result.nPU       = nPU;
+    result.nUnmatched= nUnmatched;
+    return result;
+}
 
 void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) {
 //  pfparticles.clear();
@@ -251,27 +608,86 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   pf_keepAlways.clear();
   pf_keepDisplaced.clear();
   
-
-  jetPt_.clear();
+  jetPt_puppi_all_.clear();
+  genPt_puppi_all_.clear();
   genparticles_z_.clear();
-  jetResponse_.clear();
-  jetAbsEta_.clear(); 
-  jetPt_pfraw_.clear();
-  jetPt_tight_.clear();
-  genPt_tight_.clear();
-  jetPt_loose_.clear();
-  genPt_loose_.clear();
-  jetResponse_PR_pfraw_.clear();
-  jetResponse_PR_tight_.clear();
-  jetResponse_PR_loose_.clear();
-  jetAbsEta_pfraw_.clear();
-  jetAbsEta_tight_.clear();
-  jetAbsEta_loose_.clear();
+  jetResponse_PR_puppi_all_.clear();
+  jetAbsEta_puppi_all_.clear(); 
+  puFracPt_puppi_all_.clear(), 
+  puFracCount_puppi_all_.clear();
+  
+  jetPt_puppi_5leading_.clear();
+  genPt_puppi_5leading_.clear();
+  jetResponse_PR_puppi_5leading_.clear();
+  jetAbsEta_puppi_5leading_.clear(); 
+  puFracPt_puppi_5leading_.clear(), 
+  puFracCount_puppi_5leading_.clear();
 
-  jetPt_MTD_.clear();
-  jetAbsEta_MTD_.clear();
-  jetTime_MTD_.clear();
-  jetTimeError_MTD_.clear();
+  jetPt_pfraw_all_.clear();
+  genPt_pfraw_all_.clear();
+  jetResponse_PR_pfraw_all_.clear();
+  jetAbsEta_pfraw_all_.clear();
+  puFracPt_pfraw_all_.clear(), 
+  puFracCount_pfraw_all_.clear();
+
+  jetPt_pfraw_5leading_.clear();
+  genPt_pfraw_5leading_.clear();
+  jetResponse_PR_pfraw_5leading_.clear();
+  jetAbsEta_pfraw_5leading_.clear();
+  puFracPt_pfraw_5leading_.clear(), 
+  puFracCount_pfraw_5leading_.clear();
+  
+  jetPt_tight_all_.clear();
+  genPt_tight_all_.clear();
+  jetResponse_PR_tight_all_.clear();
+  jetAbsEta_tight_all_.clear();
+  puFracPt_tight_all_.clear(), 
+  puFracCount_tight_all_.clear();
+
+  jetPt_tight_5leading_.clear();
+  genPt_tight_5leading_.clear();
+  jetResponse_PR_tight_5leading_.clear();
+  jetAbsEta_tight_5leading_.clear();
+  puFracPt_tight_5leading_.clear(), 
+  puFracCount_tight_5leading_.clear();
+  
+  jetPt_loose_all_.clear();
+  genPt_loose_all_.clear();
+  jetResponse_PR_loose_all_.clear();
+  jetAbsEta_loose_all_.clear();
+  puFracPt_loose_all_.clear(), 
+  puFracCount_loose_all_.clear();
+  
+  jetPt_loose_5leading_.clear();
+  genPt_loose_5leading_.clear();
+  jetResponse_PR_loose_5leading_.clear();
+  jetAbsEta_loose_5leading_.clear();
+  puFracPt_loose_5leading_.clear(), 
+  puFracCount_loose_5leading_.clear();
+
+  jetPt_MTD_all_.clear();
+  genPt_MTD_all_.clear();
+  jetResponse_PR_MTD_all_.clear();
+  jetAbsEta_MTD_all_.clear();
+  jetTime_MTD_all_.clear();
+  jetTimeError_MTD_all_.clear();
+  puFracPt_MTD_all_.clear(), 
+  puFracCount_MTD_all_.clear();
+
+  jetPt_MTD_5leading_.clear();
+  genPt_MTD_5leading_.clear();
+  jetResponse_PR_MTD_5leading_.clear();
+  jetAbsEta_MTD_5leading_.clear();
+  jetTime_MTD_5leading_.clear();
+  jetTimeError_MTD_5leading_.clear();
+  puFracPt_MTD_5leading_.clear(), 
+  puFracCount_MTD_5leading_.clear();
+
+  pf_isHS.clear();
+//  puFrac_pfraw_.clear();
+//  puFrac_tight_.clear();
+//  puFrac_loose_.clear();
+//  puFrac_MTD_.clear();
 
   int N_HS_total = 0;
 //  int N_selected = 0;
@@ -281,7 +697,6 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   int N_selected_HS_loose = 0;
   int N_charged = 0;
   int N_neutral = 0; 
-
 
 // Retrieve jet collection
   edm::Handle<std::vector<pat::Jet>> jets;
@@ -310,7 +725,6 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
       hasGenZ = true;
     }
   }
-
 
   // â Early event rejection if gen vertex is valid and reco_pvs(primary vertices) is not empty
   // =Only accept the event if the first reco PV is literally the one closest to the gen vertex.
@@ -346,39 +760,6 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   edm::Handle<std::vector<reco::GenParticle>> genp;
   iEvent.getByToken(genParticlesToken_, genp);
 
-  // Fill jets (limit to leading 5 jets)
-  int jetIndex = 0;
-  for (const auto& jet : *jets) {
-
-    const reco::GenJet* matchedGenJet = nullptr;
-    float minDR = 0.3;
-    for (const auto& genJet : *genJets) {
-       float dR = reco::deltaR(jet, genJet);
-       if (dR < minDR) {
-         minDR = dR;
-         matchedGenJet = &genJet;
-      }//End of if (dR < minDR) 
-    }//End of for (const auto& genJet : *genJets)
- 
-    if (matchedGenJet) {
-      pt_ = jet.pt();
-      eta_ = jet.eta();
-      phi_ = jet.phi();
-      mass_ = jet.mass();
-//      jetResponse_ = (matchedGenJet->pt() > 0) ? jet.pt() / matchedGenJet->pt() : -1.0;
-//      jetAbsEta_   = std::abs(jet.eta());
-      jetResponse_.push_back(jet.pt() / matchedGenJet->pt());
-      jetAbsEta_.push_back(std::abs(jet.eta()));
-      jetPt_.push_back(jet.pt());
-      genPt_.push_back(matchedGenJet->pt());
-
-  //    tree_->Fill();  // fill the tree with this matched jet
-    }//End of if (matchedGenJet)
-
-    jetIndex++;
-    if (jetIndex >= 5) break;// For the leading 5 jets
-  }//End of for (const auto& jet : *jets)
-
 
   // Fill PackedCandidates
   std::vector<fastjet::PseudoJet> fjInputs_raw;
@@ -387,7 +768,8 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   std::vector<fastjet::PseudoJet> fjInputs_MTD;
   std::vector<const pat::PackedCandidate*> pf_for_MTD;
 //  primaryVertices.clear();
-
+  
+  //---PF Particle Loop---
   int pf_coll_index = 0;
   for (const auto& pf : pf_coll) {
     pf_pt.push_back(pf.pt());
@@ -405,18 +787,31 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
     pf_fromPV.push_back(pf.fromPV());
     
     float eta = pf.eta(); 
+    bool isInMTD = (std::abs(eta) <= 3.0);
     const bool isCharged = (pf.charge() != 0);
     const bool isNeutral = (pf.charge() == 0);
     const int fromPV = pf.fromPV();
     const bool keepAlways = (fromPV == 3);
     pf_isCharged.push_back(isCharged);
-      
+    
+    //=====Match PF candidate to gen-level particle=====
+    int isHSflag = -1; // default: unmatched
+    if (genp.isValid()) {
+        const reco::GenParticle* genMatch = matchToGen(pf, *genp);//Helper Function1:  PF candidate → GenParticle matching
+        if (genMatch) {
+            // A hard-scatter particle usually has status flags or comes from primary vertex 0
+            bool fromHardProcess = genMatch->isHardProcess() || genMatch->statusFlags().isPrompt();
+            isHSflag = fromHardProcess ? 1 : 0;
+        }
+    }
+    pf_isHS.push_back(isHSflag);
+    // ===== End of Match PF candidate to gen-level particle =====  
+
     // Common PseudoJet for dz-based clustering
     fastjet::PseudoJet pj(pf.px(), pf.py(), pf.pz(), pf.energy());
     pj.set_user_index(pf_coll_index);//link PF index,this one used for tight/loose only, Not used for MTD
     fjInputs_raw.push_back(pj);//all PFS, no cut (for control)
 
-    bool isInMTD = false;
     bool hasTimingInfo = false;
 
     if (pf.hasTrackDetails() && isCharged) {
@@ -427,8 +822,7 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
       float dz     = pf.dz();
       float dzErr  = pf.dzError();
       float dzSig  = (dzErr > 0) ? dz / dzErr : 999;
-     
-       
+      
       pf_dxy.push_back(pf.dxy());
       pf_dz.push_back(dz);
       pf_dzError.push_back(dzErr);
@@ -436,7 +830,6 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
 
       float t = pf.time();//nanoseconds
       float tErr = pf.timeError();//nanoseconds
-      bool isInMTD = (std::abs(eta) <= 3.0);
       pf_isInMTD.push_back(isInMTD);      
       bool isDisplaced = (std::abs(dz) > 0.05);//To keep displaced tracks
 
@@ -475,7 +868,7 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
 //          << "PF with eta=" << eta_ << ", pt=" << pt 
 //          << " has INVALID time (time=" << t
 //          << ", error=" << tErr << ")";
-      }//end of if (hasValidTime) else
+      }//end of if (hasValidTime) else 
 
       //dz:mean -3.1 X 10(-6), sigma:0.010cm
       //dzSig: mean -2.1X 10 (-6), sigma: 0.073      
@@ -490,20 +883,20 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
 
 
       if (keepAlways || passesTightCut) {
-//      if (keepAlways || passesTightCut || keepDisplaced ) {//To save track has large dz,4D selection
+//      if (keepAlways || passesTightCut || keepDisplaced &&(hasValidTime && pf.timeError() < 0.2)) {//To save track has large dz,4D selection
         fjInputs_tight.push_back(pj);
         ++N_selected_tight;
         if (isHS) ++N_selected_HS_tight;
       }
       if (keepAlways || passesLooseCut) {
-//      if (keepAlways || passesLooseCut || keepDisplaced ) {//To save track has large dz, 4D selection
+//      if (keepAlways || passesLooseCut || keepDisplaced &&(hasValidTime && pf.timeError() < 0.2)) {//To save track has large dz, 4D selection
         fjInputs_loose.push_back(pj);
         ++N_selected_loose;
         if (isHS) ++N_selected_HS_loose;
       }
         // MTD-based selection
 //      if (pf.isTimeValid() && pf.timeError() < 0.05) {//pat::PackedCandidate does not have a method called .isTimeValid()
-      if (hasValidTime && pf.timeError() < 0.05) {
+      if (hasValidTime && pf.timeError() < 0.2) {
       
         fastjet::PseudoJet pj_mtd(pf.px(), pf.py(), pf.pz(), pf.energy());
         pj_mtd.set_user_index(pf_for_MTD.size());//index back to PackedCandidate
@@ -526,7 +919,7 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
       ++N_neutral;
       fjInputs_tight.push_back(pj);
       fjInputs_loose.push_back(pj);
-    } 
+    }//End of if (hasValidTime && pf.timeError() < 0.2) else 
 
 
       //outside the MTD geometry &seem to have time info:Indicate a reconstruction or simulation artifact.
@@ -572,150 +965,175 @@ purity_loose_ = purity_loose;
   auto cs_mtd = fastjet::ClusterSequence(fjInputs_MTD, jetDef);
   auto mtdJets = fastjet::sorted_by_pt(cs_mtd.inclusive_jets(20.0));
 
+//===== Generic std::vector<pat::Jet> Loop Template=====
+auto processJetCollection = [&](const std::vector<pat::Jet>& jetsIn,
+                                const std::vector<reco::GenJet>& genJets,
+
+                                std::vector<float>& jetPt_all_,
+                                std::vector<float>& jetAbsEta_all_,
+                                std::vector<float>& jetResponse_all_,
+                                std::vector<float>& genPt_all_,
+                                std::vector<float>& puFracPt_all_,
+                                std::vector<float>& puFracCount_all_,
+
+                                std::vector<float>& jetPt_5leading_,
+                                std::vector<float>& jetAbsEta_5leading_,
+                                std::vector<float>& jetResponse_5leading_,
+                                std::vector<float>& genPt_5leading_,
+                                std::vector<float>& puFracPt_5leading_,
+                                std::vector<float>& puFracCount_5leading_,
+
+                                int& totalRecoJets,
+                                int& totalPUJets,
+                                float& puJetFraction_all) {
+    int idx = 0;
+    totalRecoJets = 0;
+    totalPUJets   = 0;
+
+    for (const auto& jet : jetsIn) {
+        totalRecoJets++;
+
+        // Get PF indices for this jet
+        std::vector<unsigned int> pf_indices_this_jet =  getPFIndicesFromPatJet(jet);
+         pf_indices_tight_.push_back(pf_indices_this_jet);
+
+        // Jet ↔ GenJet matching
+        const reco::GenJet* matchedGenJet = matchGenJet(jet, genJets);
+        bool isPUJet = (matchedGenJet == nullptr);
+        if (isPUJet) totalPUJets++;
+
+        // Response
+        float response = computeResponse(jet, matchedGenJet);
+
+        // PU content
+        PUContent pu = computePUContent(jet, pf_pt, pf_isHS);
+
+        // Save ALL jets
+        jetPt_all_.push_back(jet.pt());
+        jetAbsEta_all_.push_back(std::abs(jet.eta()));
+        genPt_all_.push_back(matchedGenJet ? matchedGenJet->pt() : -1.0);
+        jetResponse_all_.push_back(response);
+        puFracCount_all_.push_back(pu.fracCount);
+        puFracPt_all_.push_back(pu.fracPt);
+
+        // Save LEADING 5 jets
+        if (idx < 5) {
+            jetPt_5leading_.push_back(jet.pt());
+            jetAbsEta_5leading_.push_back(std::abs(jet.eta()));
+            genPt_5leading_.push_back(matchedGenJet ? matchedGenJet->pt() : -1.0);
+            jetResponse_5leading_.push_back(response);
+            puFracCount_5leading_.push_back(pu.fracCount);
+            puFracPt_5leading_.push_back(pu.fracPt);
+        }
+
+        idx++;
+    }
+
+    puJetFraction_all = (totalRecoJets > 0)
+        ? static_cast<float>(totalPUJets) / totalRecoJets
+        : -1.0f;
+};
+
+auto processFastJetCollection = [&](const std::vector<fastjet::PseudoJet>& jetsIn,
+                                    const std::vector<reco::GenJet>& genJets,
+
+                                    std::vector<float>& jetPt_all_,
+                                    std::vector<float>& jetAbsEta_all_,
+                                    std::vector<float>& jetResponse_all_,
+                                    std::vector<float>& genPt_all_,
+                                    std::vector<float>& puFracPt_all_,
+                                    std::vector<float>& puFracCount_all_,
+
+                                    std::vector<float>& jetPt_5leading_,
+                                    std::vector<float>& jetAbsEta_5leading_,
+                                    std::vector<float>& jetResponse_5leading_,
+                                    std::vector<float>& genPt_5leading_,
+                                    std::vector<float>& puFracPt_5leading_,
+                                    std::vector<float>& puFracCount_5leading_,
+
+                                    int& totalRecoJets,
+                                    int& totalPUJets,
+                                    float& puJetFraction_all) {
+    int idx = 0;
+    totalRecoJets = 0;
+    totalPUJets   = 0;
+
+    for (const auto& jet : jetsIn) {
+        totalRecoJets++;
+
+        // Get PF indices for this jet
+        std::vector<unsigned int> pf_indices_this_jet = getPFIndicesFromPseudoJet(jet);
+        pf_indices_pfraw_.push_back(pf_indices_this_jet);
+
+        // Jet ↔ GenJet matching
+        const reco::GenJet* matchedGenJet = matchGenJet(jet, genJets);
+        bool isPUJet = (matchedGenJet == nullptr);
+        if (isPUJet) totalPUJets++;
+
+        // Response
+        float response = computeResponse(jet, matchedGenJet);
+
+        // PU content
+        PUContent pu = computePUContent(jet, pf_pt, pf_isHS);
+
+        // Save ALL jets
+        jetPt_all_.push_back(jet.pt());
+        jetAbsEta_all_.push_back(std::abs(jet.eta()));
+        genPt_all_.push_back(matchedGenJet ? matchedGenJet->pt() : -1.0);
+        jetResponse_all_.push_back(response);
+        puFracCount_all_.push_back(pu.fracCount);
+        puFracPt_all_.push_back(pu.fracPt);
+
+        // Save LEADING 5 jets
+        if (idx < 5) {
+            jetPt_5leading_.push_back(jet.pt());
+            jetAbsEta_5leading_.push_back(std::abs(jet.eta()));
+            genPt_5leading_.push_back(matchedGenJet ? matchedGenJet->pt() : -1.0);
+            jetResponse_5leading_.push_back(response);
+            puFracCount_5leading_.push_back(pu.fracCount);
+            puFracPt_5leading_.push_back(pu.fracPt);
+        }
+
+        idx++;
+    }
+
+    puJetFraction_all = (totalRecoJets > 0)
+        ? static_cast<float>(totalPUJets) / totalRecoJets
+        : -1.0f;
+};
+
+
+processJetCollection(*jets,  *genJets, 
+	jetPt_puppi_all_, jetAbsEta_puppi_all_, jetResponse_PR_puppi_all_,genPt_puppi_all_, puFracPt_puppi_all_, puFracCount_puppi_all_,
+	jetPt_puppi_5leading_, jetAbsEta_puppi_5leading_, jetResponse_PR_puppi_5leading_, genPt_puppi_5leading_, puFracPt_puppi_5leading_, puFracCount_puppi_5leading_,
+	totalRecoJets_puppi, totalPUJets_puppi, puJetFraction_puppi_all);
+
+processFastJetCollection(pfrawJets,  *genJets, 
+	jetPt_pfraw_all_, jetAbsEta_pfraw_all_, jetResponse_PR_pfraw_all_,genPt_pfraw_all_, puFracPt_pfraw_all_, puFracCount_pfraw_all_,
+	jetPt_pfraw_5leading_, jetAbsEta_pfraw_5leading_, jetResponse_PR_pfraw_5leading_, genPt_pfraw_5leading_, puFracPt_pfraw_5leading_, puFracCount_pfraw_5leading_,
+	totalRecoJets_pfraw, totalPUJets_pfraw, puJetFraction_pfraw_all);
+
+processFastJetCollection(tightJets,  *genJets, 
+	jetPt_tight_all_, jetAbsEta_tight_all_, jetResponse_PR_tight_all_,genPt_tight_all_, puFracPt_tight_all_, puFracCount_tight_all_,
+	jetPt_tight_5leading_, jetAbsEta_tight_5leading_, jetResponse_PR_tight_5leading_, genPt_tight_5leading_, puFracPt_tight_5leading_, puFracCount_tight_5leading_,
+	totalRecoJets_tight, totalPUJets_tight, puJetFraction_tight_all);
+
+
+processFastJetCollection(looseJets,  *genJets,
+	jetPt_loose_all_, jetAbsEta_loose_all_, jetResponse_PR_loose_all_,genPt_loose_all_, puFracPt_loose_all_, puFracCount_loose_all_,
+	jetPt_loose_5leading_, jetAbsEta_loose_5leading_, jetResponse_PR_loose_5leading_, genPt_loose_5leading_, puFracPt_loose_5leading_, puFracCount_loose_5leading_,
+	totalRecoJets_loose, totalPUJets_loose, puJetFraction_loose_all);
+
+/*
+processFastJetCollection(mtdJets,  *genJets, 
+	jetPt_MTD_all_, jetAbsEta_MTD_all_, jetResponse_PR_MTD_all_,genPt_MTD_all_, puFracPt_MTD_all_, puFracCount_MTD_all_,
+	jetPt_MTD_5leading_, jetAbsEta_MTD_5leading_, jetResponse_PR_MTD_5leading_, genPt_MTD_5leading_, puFracPt_MTD_5leading_, puFracCount_MTD_5leading_,
+	totalRecoJets_MTD, totalPUJets_MTD, puJetFraction_MTD_all);
+*/
 
 //  jetResponse_PR_tight_ = -1;
 //  jetResponse_PR_loose_ = -1;
 //  jetAbsEta_ = -1; 
-
-//GenJet matching logic1  
-  auto computeResponse = [&](const fastjet::PseudoJet& recoJet) -> float {
-    const reco::GenJet* matchedGenJet = nullptr;
-    float minDR = 0.3;
-    for (const auto& genJet : *genJets) {
-      float dR = reco::deltaR(recoJet.eta(), recoJet.phi(), genJet.eta(), genJet.phi());
-      if (dR < minDR) {
-        minDR = dR;
-        matchedGenJet = &genJet;
-      }
-    }
-    if (matchedGenJet && matchedGenJet->pt() > 0){
-      return recoJet.pt() / matchedGenJet->pt();
-      
-    }
-      return -1;
-  };
-
-  // === Jet-PF matching index storage (after jet clustering, per category) ===
-//  std::vector<std::vector<unsigned int>> pf_indices_raw_;
-//  tree_->Branch("pf_indices_raw", &pf_indices_raw_);
-//  pf_indices_raw_.clear();
- 
-  // no cut (for control)
-  for (const auto& jet : pfrawJets) {
-    float response = computeResponse(jet);
-    std::vector<unsigned int> pf_indices_this_jet;
-    jetResponse_PR_pfraw_.push_back(response);
-    jetAbsEta_pfraw_.push_back(std::abs(jet.eta()));
-    jetPt_pfraw_.push_back(jet.pt());
-
-    //GenJet matching logic2: get matching GenJet pT
-    const reco::GenJet* matchedGenJet = nullptr;
-    float minDR = 0.3;
-    for (const auto& genJet : *genJets) {
-      float dR = reco::deltaR(jet.eta(), jet.phi(), genJet.eta(), genJet.phi());
-      if (dR < minDR) {
-        minDR = dR;
-        matchedGenJet = &genJet;
-      }
-    }
-    genPt_pfraw_.push_back((matchedGenJet) ? matchedGenJet->pt() : -1);
-
-    for (const auto& constituent : jet.constituents()) {
-      pf_indices_this_jet.push_back(constituent.user_index());
-    }        
-    pf_indices_pfraw_.push_back(pf_indices_this_jet);
-    if (jetResponse_PR_tight_.size() >= 5) break;
-  }//for (const auto& jet : pfrawJets)
-
-  pf_indices_tight_.clear();  // Clear before filling
-  for (const auto& jet : tightJets) {
-    float response = computeResponse(jet);
-    jetResponse_PR_tight_.push_back(response);
-    jetAbsEta_tight_.push_back(std::abs(jet.eta()));
-    jetPt_tight_.push_back(jet.pt());
-
-    //GenJet matching logic2: get matching GenJet pT
-    const reco::GenJet* matchedGenJet = nullptr;
-    float minDR = 0.3;
-    for (const auto& genJet : *genJets) {
-      float dR = reco::deltaR(jet.eta(), jet.phi(), genJet.eta(), genJet.phi());
-      if (dR < minDR) {
-        minDR = dR;
-        matchedGenJet = &genJet;
-      }
-    }
-    genPt_tight_.push_back((matchedGenJet) ? matchedGenJet->pt() : -1);
-
-    // PF-jet matching index (constituent PF indices)
-    std::vector<unsigned int> pf_indices_this_jet;
-    for (const auto& constituent : jet.constituents()) {
-      pf_indices_this_jet.push_back(constituent.user_index());
-    }
-    pf_indices_tight_.push_back(pf_indices_this_jet);
-      if (jetResponse_PR_tight_.size() >= 5) break;
-  }//for (const auto& jet : tightJets)
-
-  pf_indices_loose_.clear();  // Clear before filling 
-  for (const auto& jet : looseJets) {
-    float response = computeResponse(jet);
-    jetResponse_PR_loose_.push_back(response);
-    jetAbsEta_loose_.push_back(std::abs(jet.eta()));
-    jetPt_loose_.push_back(jet.pt());
-
-    //GenJet matching logic2:  get matching GenJet pT
-    const reco::GenJet* matchedGenJet = nullptr;
-    float minDR = 0.3;
-    for (const auto& genJet : *genJets) {
-      float dR = reco::deltaR(jet.eta(), jet.phi(), genJet.eta(), genJet.phi());
-      if (dR < minDR) {
-        minDR = dR;
-        matchedGenJet = &genJet;
-      }
-    }
-    genPt_loose_.push_back((matchedGenJet) ? matchedGenJet->pt() : -1);
-
-    // PF-jet matching index (constituent PF indices)
-    std::vector<unsigned int> pf_indices_this_jet;
-    for (const auto& constituent : jet.constituents()) {
-      pf_indices_this_jet.push_back(constituent.user_index());
-    }  
-    pf_indices_loose_.push_back(pf_indices_this_jet);
-    if (jetResponse_PR_loose_.size() >= 5) break;
-  }//End of for (const auto& jet : looseJets)
-
-  //Compute per-jet timing (pT-weighted average)
-  pf_indices_MTD_.clear();  // Clear before filling
-  for (const auto& jet : mtdJets) {
-    float sumPt = 0.0, sumTime = 0.0, sumTime2 = 0.0;
-//    bool isInMTD = (std::abs(eta_) <= 3.0);//MTD acceptance check
-//    pf_isInMTD.push_back(isInMTD);  // store in tree
-    
-    for (const auto& idx : jet.constituents()) {
-      int userIdx = idx.user_index();
-      if (userIdx >= 0 && userIdx < static_cast<int>(pf_for_MTD.size())) {
-        const auto* pf = pf_for_MTD[userIdx];
-        float weight = pf->pt();
-        sumPt += weight;
-        sumTime += weight * pf->time();
-        sumTime2 += weight * pf->time() * pf->time();
-      }
-    }
-    float avgTime = (sumPt > 0) ? sumTime / sumPt : -999;
-    float rmsTime = (sumPt > 0) ? std::sqrt(sumTime2 / sumPt - avgTime * avgTime) : -1;
-
-    jetPt_MTD_.push_back(jet.pt());
-    jetAbsEta_MTD_.push_back(std::abs(jet.eta()));
-    jetTime_MTD_.push_back(avgTime);
-    jetTimeError_MTD_.push_back(rmsTime);
-
-  // PF-jet matching index (constituent PF indices)
-  std::vector<unsigned int> pf_indices_this_jet;
-  for (const auto& constituent : jet.constituents()) {
-    pf_indices_this_jet.push_back(constituent.user_index());
-  }
-  pf_indices_MTD_.push_back(pf_indices_this_jet);
-    if (jetPt_MTD_.size() >= 5) break;
-  }//End of for (const auto& jet : mtdJets)
 
   //Store all primary vertices in a vector
     std::vector<PrimaryVertex> primaryVertices;
@@ -770,8 +1188,6 @@ edm::LogWarning("particle check")
     << ", neutral particles = " << N_neutral;
 
 }//End of void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) {
-
-
 
 void JetTreeProducer::endJob() {
   //file_->cd();

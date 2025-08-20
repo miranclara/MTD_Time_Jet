@@ -79,6 +79,7 @@ private:
   std::vector<float> genPt_puppi_all_;
   std::vector<float> puFracPt_puppi_all_;
   std::vector<float> puFracCount_puppi_all_;
+  std::vector<float> puJetFraction_puppi_all_;
 
   std::vector<float> jetPt_puppi_5leading_;
   std::vector<float> jetAbsEta_puppi_5leading_;
@@ -86,6 +87,7 @@ private:
   std::vector<float> genPt_puppi_5leading_;
   std::vector<float> puFracPt_puppi_5leading_;
   std::vector<float> puFracCount_puppi_5leading_;
+  std::vector<float> puJetFraction_puppi_5leading_;
 
 //  float jetResponse_ULv15;
   std::vector<float> jetPt_pfraw_all_;
@@ -94,6 +96,7 @@ private:
   std::vector<float> jetAbsEta_pfraw_all_;
   std::vector<float> puFracPt_pfraw_all_;
   std::vector<float> puFracCount_pfraw_all_;
+  std::vector<float> puJetFraction_pfraw_all_;
 
   std::vector<float> jetPt_pfraw_5leading_;
   std::vector<float> genPt_pfraw_5leading_;
@@ -101,6 +104,7 @@ private:
   std::vector<float> jetAbsEta_pfraw_5leading_;
   std::vector<float> puFracPt_pfraw_5leading_;
   std::vector<float> puFracCount_pfraw_5leading_;
+  std::vector<float> puJetFraction_pfraw_5leading_;
   
   std::vector<float> jetPt_tight_all_;
   std::vector<float> genPt_tight_all_;
@@ -108,6 +112,7 @@ private:
   std::vector<float> jetAbsEta_tight_all_;
   std::vector<float> puFracPt_tight_all_;
   std::vector<float> puFracCount_tight_all_;
+  std::vector<float> puJetFraction_tight_all_;
  
   std::vector<float> jetPt_tight_5leading_;
   std::vector<float> genPt_tight_5leading_;
@@ -115,6 +120,7 @@ private:
   std::vector<float> jetAbsEta_tight_5leading_;
   std::vector<float> puFracPt_tight_5leading_;
   std::vector<float> puFracCount_tight_5leading_;
+  std::vector<float> puJetFraction_tight_5leading_;
   
   std::vector<float> jetPt_loose_all_;
   std::vector<float> genPt_loose_all_;
@@ -122,6 +128,7 @@ private:
   std::vector<float> jetAbsEta_loose_all_;
   std::vector<float> puFracPt_loose_all_;
   std::vector<float> puFracCount_loose_all_;
+  std::vector<float> puJetFraction_loose_all_;
   
   std::vector<float> jetPt_loose_5leading_;
   std::vector<float> genPt_loose_5leading_;
@@ -129,6 +136,7 @@ private:
   std::vector<float> jetAbsEta_loose_5leading_;
   std::vector<float> puFracPt_loose_5leading_;
   std::vector<float> puFracCount_loose_5leading_;
+  std::vector<float> puJetFraction_loose_5leading_;
 
   //For MTD-based jet clustering
   std::vector<float> jetPt_MTD_all_;
@@ -137,6 +145,7 @@ private:
   std::vector<float> jetAbsEta_MTD_all_;
   std::vector<float> puFracPt_MTD_all_;
   std::vector<float> puFracCount_MTD_all_;
+  std::vector<float> puJetFraction_MTD_all_;
   std::vector<float> jetTime_MTD_all_;
   std::vector<float> jetTimeError_MTD_all_;
 
@@ -146,6 +155,7 @@ private:
   std::vector<float> jetAbsEta_MTD_5leading_;
   std::vector<float> puFracPt_MTD_5leading_;
   std::vector<float> puFracCount_MTD_5leading_;
+  std::vector<float> puJetFraction_MTD_5leading_;
   std::vector<float> jetTime_MTD_5leading_;
   std::vector<float> jetTimeError_MTD_5leading_;
 
@@ -223,8 +233,9 @@ void JetTreeProducer::beginJob() {
   tree_->Branch("genPt_puppi_all", &genPt_puppi_all_);
   tree_->Branch("jetResponse_puppi_all", &jetResponse_PR_puppi_all_);
   tree_->Branch("jetAbsEta_puppi_all", &jetAbsEta_puppi_all_);  
-  tree_->Branch("puFracPt_puppi_all_", &puFracPt_puppi_all_);
-  tree_->Branch("puFracCount_puppi_all_", &puFracCount_puppi_all_);  
+  tree_->Branch("puFracPt_puppi_all", &puFracPt_puppi_all_);
+  tree_->Branch("puFracCount_puppi_all", &puFracCount_puppi_all_);  
+  tree_->Branch("puJetFraction_puppi_all", &puFracCount_puppi_all_);  
   
   tree_->Branch("jetPt_puppi_5leading", &jetPt_puppi_5leading_);
   tree_->Branch("genPt_puppi_5leading", &genPt_puppi_5leading_);
@@ -232,6 +243,7 @@ void JetTreeProducer::beginJob() {
   tree_->Branch("jetAbsEta_puppi_5leading", &jetAbsEta_puppi_5leading_);  
   tree_->Branch("puFracPt_puppi_5leading", &puFracPt_puppi_5leading_);
   tree_->Branch("puFracCount_puppi_5leading", &puFracCount_puppi_5leading_);  
+  tree_->Branch("puJetFraction_puppi_5leading", &puFracCount_puppi_5leading_);  
   
   tree_->Branch("jetResponse_PR_pfraw_all", &jetResponse_PR_pfraw_all_);
   tree_->Branch("jetPt_pfraw_all", &jetPt_pfraw_all_);
@@ -239,6 +251,7 @@ void JetTreeProducer::beginJob() {
   tree_->Branch("jetAbsEta_pfraw_all", &jetAbsEta_pfraw_all_); 
   tree_->Branch("puFracPt_pfraw_all", &puFracPt_pfraw_all_);
   tree_->Branch("puFracCount_pfraw_all", &puFracCount_pfraw_all_);  
+  tree_->Branch("puJetFraction_pfraw_all", &puFracCount_pfraw_all_);  
  
   tree_->Branch("jetResponse_PR_pfraw_5leading", &jetResponse_PR_pfraw_5leading_);
   tree_->Branch("jetPt_pfraw_5leading", &jetPt_pfraw_5leading_);
@@ -246,6 +259,7 @@ void JetTreeProducer::beginJob() {
   tree_->Branch("jetAbsEta_pfraw_5leading", &jetAbsEta_pfraw_5leading_); 
   tree_->Branch("puFracPt_pfraw_5leading", &puFracPt_pfraw_5leading_);
   tree_->Branch("puFracCount_pfraw_5leading", &puFracCount_pfraw_5leading_);  
+  tree_->Branch("puJetFraction_pfraw_5leading", &puFracCount_pfraw_5leading_);  
 
   tree_->Branch("jetPt_tight_all", &jetPt_tight_all_);
   tree_->Branch("genPt_tight_all", &genPt_tight_all_);
@@ -253,6 +267,7 @@ void JetTreeProducer::beginJob() {
   tree_->Branch("jetAbsEta_tight_all", &jetAbsEta_tight_all_);
   tree_->Branch("puFracPt_tight_all", &puFracPt_tight_all_);
   tree_->Branch("puFracCount_tight_all", &puFracCount_tight_all_);  
+  tree_->Branch("puJetFraction_tight_all", &puFracCount_tight_all_);  
   
   tree_->Branch("jetPt_tight_5leading", &jetPt_tight_5leading_);
   tree_->Branch("genPt_tight_5leading", &genPt_tight_5leading_);
@@ -260,6 +275,7 @@ void JetTreeProducer::beginJob() {
   tree_->Branch("jetAbsEta_tight_5leading", &jetAbsEta_tight_5leading_);
   tree_->Branch("puFracPt_tight_5leading", &puFracPt_tight_5leading_);
   tree_->Branch("puFracCount_tight_5leading", &puFracCount_tight_5leading_);  
+  tree_->Branch("puJetFraction_tight_5leading", &puFracCount_tight_5leading_);  
 
   tree_->Branch("jetResponse_PR_loose_all", &jetResponse_PR_loose_all_);
   tree_->Branch("jetAbsEta_loose_all", &jetAbsEta_loose_all_);
@@ -267,6 +283,7 @@ void JetTreeProducer::beginJob() {
   tree_->Branch("genPt_loose_all", &genPt_loose_all_);
   tree_->Branch("puFracPt_loose_all", &puFracPt_tight_all_);
   tree_->Branch("puFracCount_loose_all", &puFracCount_tight_all_);  
+  tree_->Branch("puJetFraction_loose_all", &puFracCount_tight_all_);  
 
   tree_->Branch("jetResponse_PR_loose_5leading", &jetResponse_PR_loose_5leading_);
   tree_->Branch("jetAbsEta_loose_5leading", &jetAbsEta_loose_5leading_);
@@ -274,6 +291,7 @@ void JetTreeProducer::beginJob() {
   tree_->Branch("genPt_loose_5leading", &genPt_loose_5leading_);
   tree_->Branch("puFracPt_loose_5leading", &puFracPt_tight_5leading_);
   tree_->Branch("puFracCount_loose_5leading", &puFracCount_tight_5leading_);  
+  tree_->Branch("puJetFraction_loose_5leading", &puFracCount_tight_5leading_);  
 
   tree_->Branch("jetResponse_PR_MTD_all", &jetResponse_PR_MTD_all_);
   tree_->Branch("jetAbsEta_MTD_all", &jetAbsEta_MTD_all_);
@@ -283,6 +301,7 @@ void JetTreeProducer::beginJob() {
   tree_->Branch("jetTimeError_MTD_all", &jetTimeError_MTD_all_);
   tree_->Branch("puFracPt_MTD_all", &puFracPt_MTD_all_);
   tree_->Branch("puFracCount_MTD_all", &puFracCount_MTD_all_);  
+  tree_->Branch("puJetFraction_MTD_all", &puFracCount_MTD_all_);  
 
   tree_->Branch("jetResponse_PR_MTD_5leading", &jetResponse_PR_MTD_5leading_);
   tree_->Branch("jetAbsEta_MTD_5leading", &jetAbsEta_MTD_5leading_);
@@ -292,6 +311,7 @@ void JetTreeProducer::beginJob() {
   tree_->Branch("jetTimeError_MTD_5leading", &jetTimeError_MTD_5leading_);
   tree_->Branch("puFracPt_MTD_5leading", &puFracPt_MTD_5leading_);
   tree_->Branch("puFracCount_MTD_5leading", &puFracCount_MTD_5leading_);  
+  tree_->Branch("puJetFraction_MTD_5leading", &puFracCount_MTD_5leading_);  
 
 //  tree_->Branch("primaryVertices", &primaryVertices);
 
@@ -615,6 +635,7 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   jetAbsEta_puppi_all_.clear(); 
   puFracPt_puppi_all_.clear(), 
   puFracCount_puppi_all_.clear();
+  puJetFraction_puppi_all_.clear();
   
   jetPt_puppi_5leading_.clear();
   genPt_puppi_5leading_.clear();
@@ -622,6 +643,7 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   jetAbsEta_puppi_5leading_.clear(); 
   puFracPt_puppi_5leading_.clear(), 
   puFracCount_puppi_5leading_.clear();
+  puJetFraction_puppi_5leading_.clear();
 
   jetPt_pfraw_all_.clear();
   genPt_pfraw_all_.clear();
@@ -629,6 +651,7 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   jetAbsEta_pfraw_all_.clear();
   puFracPt_pfraw_all_.clear(), 
   puFracCount_pfraw_all_.clear();
+  puJetFraction_pfraw_all_.clear();
 
   jetPt_pfraw_5leading_.clear();
   genPt_pfraw_5leading_.clear();
@@ -636,6 +659,7 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   jetAbsEta_pfraw_5leading_.clear();
   puFracPt_pfraw_5leading_.clear(), 
   puFracCount_pfraw_5leading_.clear();
+  puJetFraction_pfraw_5leading_.clear();
   
   jetPt_tight_all_.clear();
   genPt_tight_all_.clear();
@@ -643,6 +667,7 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   jetAbsEta_tight_all_.clear();
   puFracPt_tight_all_.clear(), 
   puFracCount_tight_all_.clear();
+  puJetFraction_tight_all_.clear();
 
   jetPt_tight_5leading_.clear();
   genPt_tight_5leading_.clear();
@@ -650,6 +675,8 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   jetAbsEta_tight_5leading_.clear();
   puFracPt_tight_5leading_.clear(), 
   puFracCount_tight_5leading_.clear();
+  puJetFraction_tight_5leading_.clear();
+
   
   jetPt_loose_all_.clear();
   genPt_loose_all_.clear();
@@ -657,6 +684,7 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   jetAbsEta_loose_all_.clear();
   puFracPt_loose_all_.clear(), 
   puFracCount_loose_all_.clear();
+  puJetFraction_loose_all_.clear();
   
   jetPt_loose_5leading_.clear();
   genPt_loose_5leading_.clear();
@@ -664,6 +692,7 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   jetAbsEta_loose_5leading_.clear();
   puFracPt_loose_5leading_.clear(), 
   puFracCount_loose_5leading_.clear();
+  puJetFraction_loose_5leading_.clear();
 
   jetPt_MTD_all_.clear();
   genPt_MTD_all_.clear();
@@ -673,6 +702,7 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   jetTimeError_MTD_all_.clear();
   puFracPt_MTD_all_.clear(), 
   puFracCount_MTD_all_.clear();
+  puJetFraction_MTD_all_.clear();
 
   jetPt_MTD_5leading_.clear();
   genPt_MTD_5leading_.clear();
@@ -682,6 +712,7 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   jetTimeError_MTD_5leading_.clear();
   puFracPt_MTD_5leading_.clear(), 
   puFracCount_MTD_5leading_.clear();
+  puJetFraction_MTD_5leading_.clear();
 
   pf_isHS.clear();
 //  puFrac_pfraw_.clear();
@@ -915,7 +946,7 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
       pf_isInMTD.push_back(false);
        
       //Neutral candidate -no dz/dzSig
-      //Optionally:include all neutrals in tight/loose
+      /CMSSW_15_1_0_pre4/Optionally:include all neutrals in tight/loose
       ++N_neutral;
       fjInputs_tight.push_back(pj);
       fjInputs_loose.push_back(pj);
@@ -1032,6 +1063,8 @@ auto processJetCollection = [&](const std::vector<pat::Jet>& jetsIn,
     puJetFraction_all = (totalRecoJets > 0)
         ? static_cast<float>(totalPUJets) / totalRecoJets
         : -1.0f;
+    
+    puJetFraction_all_.push_back(puJetFraction_all);
 };
 
 auto processFastJetCollection = [&](const std::vector<fastjet::PseudoJet>& jetsIn,
@@ -1100,6 +1133,7 @@ auto processFastJetCollection = [&](const std::vector<fastjet::PseudoJet>& jetsI
     puJetFraction_all = (totalRecoJets > 0)
         ? static_cast<float>(totalPUJets) / totalRecoJets
         : -1.0f;
+    puJetFraction_all_.push_back(puJetFraction_all);
 };
 
 

@@ -17,3 +17,4 @@
 
 <flags EDM_PLUGIN="1"/>
 <flags CPPDEFINES="ROOT_IO"/>
+

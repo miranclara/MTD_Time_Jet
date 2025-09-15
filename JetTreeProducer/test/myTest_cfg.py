@@ -3,6 +3,12 @@ import FWCore.ParameterSet.Config as cms
 from Configuration.Eras.Era_Phase2C17I13M9_cff import Phase2C17I13M9
 process = cms.Process('MyJetAnalysis',Phase2C17I13M9)
 
+#For Thread change
+process.options = cms.untracked.PSet(
+    numberOfThreads = cms.untracked.uint32(0), #For single tread(1), CMSSW decide the default(0)
+    numberOfStreams = cms.untracked.uint32(0)  # usually 0 disables streams, making it single-threaded
+)
+
 process.load("FWCore.MessageService.MessageLogger_cfi")
 
 # Input source 
@@ -34,10 +40,10 @@ process.source = cms.Source("PoolSource",
 # Max events
 process.maxEvents = cms.untracked.PSet(
     input = cms.untracked.int32(-1)  # process all events(-1)
-#    input = cms.untracked.int32(10)  # For test run
+#    input = cms.untracked.int32(20)  # For test run
 )
 
-# iJetTreeProducer configuration
+# JetTreeProducer configuration
 process.jetTree = cms.EDAnalyzer("JetTreeProducer",
     #Jets input tag
     jetTag = cms.InputTag("slimmedJetsPuppi"),
@@ -46,8 +52,8 @@ process.jetTree = cms.EDAnalyzer("JetTreeProducer",
     # New: PackedCandidate collection (PF candidates)
     pf_collection_source = cms.InputTag("packedPFCandidates"),
     #Primary vertex input tag
-#    pvTag = cms.InputTag("offlinePrimaryVertices"),#RECO/AOD 
-    pvTag = cms.InputTag('offlineSlimmedPrimaryVertices4D'),#MINIAOD, 4D
+    pvTag = cms.InputTag("offlinePrimaryVertices"),#RECO/AOD 
+#    pvTag = cms.InputTag('offlineSlimmedPrimaryVertices4D'),#MINIAOD, 4D
     #Beam spot input tag
     bsTag = cms.InputTag("offlineBeamSpot"),
     # Generated particles input tag (z-position)
@@ -63,11 +69,19 @@ process.jetTree = cms.EDAnalyzer("JetTreeProducer",
 #    allowUnscheduled = cms.untracked.bool(True),
 #    TryToContinue = cms.untracked.vstring('ProductNotFound')
 #)
+#Run single-threaded for debugging
+process.options.numberOfThreads = 1
+process.options.numberOfStreams = 1
+
 
 # Output configuration
 process.TFileService = cms.Service("TFileService",
+#  fileName = cms.string('jetTree_test.root'),  # This is where the flat ROOT file will be stored
 #  fileName = cms.string('jetTree_QCD_noPU_PFincldNEUTRAL.root'),  # This is where the flat ROOT file will be stored
-  fileName = cms.string('/eos/user/m/mrkim/JetTreeOutput/jetTree_QCD_200PU_PFincldNEUTRAL.root'),  # This is where the flat ROOT file will be stored
+#  fileName = cms.string('/eos/user/m/mrkim/JetTreeOutput/jetTree_QCD_200PU_PFincldNEUTRAL.root'),  # This is where the flat ROOT file will be stored
+#  fileName = cms.string('/eos/user/m/mrkim/JetTreeOutput/jetTree_QCD_noPU_PFincldNEUTRAL_dzCut3D_newHR.root'),  # This is where the flat ROOT file will be stored
+#  fileName = cms.string("root://eosuser.cern.ch//eos/user/m/mrkim/JetTreeOutput/jetTree_QCD_noPU_PFincldNEUTRAL_dzCut3D_newHR.root"),  # This is where the flat ROOT file will be stored
+  fileName = cms.string('/eos/user/m/mrkim/JetTreeOutput/jetTree_QCD_200PU_PFincldNEUTRAL_dzCut3D_newHR.root'),  # This is where the flat ROOT file will be stored
   closeFileFast = cms.untracked.bool(True)
 )
 # Path

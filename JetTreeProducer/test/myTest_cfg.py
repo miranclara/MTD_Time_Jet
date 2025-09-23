@@ -18,9 +18,9 @@ process.source = cms.Source("PoolSource",
 #    fileNames = cms.untracked.vstring('/store/relval/CMSSW_15_1_0_pre3/RelValQCD_Pt15To7000_Flat_14/MINIAODSIM/PU_150X_mcRun4_realistic_v1_STD_Run4D110_PU-v1/2590000/f20b63ca-ab47-46de-a883-b90cd5279b65.root'),
 #    fileNames = cms.untracked.vstring('/store/relval/CMSSW_15_1_0_pre3/RelValQCD_Pt15To7000_Flat_14/MINIAODSIM/150X_mcRun4_realistic_v1_STD_RegeneratedGS_Run4D110_noPU-v1/2590000/c6e7417e-082b-4280-bcf9-ada01d57ddaa.root'),
 #    fileNames = cms.untracked.vstring('/store/relval/CMSSW_15_1_0_pre3/RelValQCD_Pt15To7000_Flat_14/MINIAODSIM/PU_150X_mcRun4_realistic_v1_STD_Run4D110_PU-v1/2590000/f20b63ca-ab47-46de-a883-b90cd5279b65.root'),
-#    fileNames = cms.untracked.vstring('/store/relval/CMSSW_15_1_0_pre4/RelValQCD_Pt15To7000_Flat_14/MINIAODSIM/150X_mcRun4_realistic_v1_STD_RegeneratedGS_Run4D110_noPU-v1/2580000/9ffe3c74-fa93-4d0c-b9f6-9c9c314fe349.root'),
-    fileNames = cms.untracked.vstring('/store/relval/CMSSW_15_1_0_pre4/RelValQCD_Pt15To7000_Flat_14/MINIAODSIM/PU_150X_mcRun4_realistic_v1_STD_Run4D110_PU-v1/2580000/33677d35-d0c0-49b1-b4bb-1f5955972b7d.root',
-'/store/relval/CMSSW_15_1_0_pre4/RelValQCD_Pt15To7000_Flat_14/MINIAODSIM/PU_150X_mcRun4_realistic_v1_STD_Run4D110_PU-v1/2580000/d36375f7-f900-43b6-9089-7262d79b2393.root'),
+    fileNames = cms.untracked.vstring('/store/relval/CMSSW_15_1_0_pre4/RelValQCD_Pt15To7000_Flat_14/MINIAODSIM/150X_mcRun4_realistic_v1_STD_RegeneratedGS_Run4D110_noPU-v1/2580000/9ffe3c74-fa93-4d0c-b9f6-9c9c314fe349.root'),
+#    fileNames = cms.untracked.vstring('/store/relval/CMSSW_15_1_0_pre4/RelValQCD_Pt15To7000_Flat_14/MINIAODSIM/PU_150X_mcRun4_realistic_v1_STD_Run4D110_PU-v1/2580000/33677d35-d0c0-49b1-b4bb-1f5955972b7d.root',
+#'/store/relval/CMSSW_15_1_0_pre4/RelValQCD_Pt15To7000_Flat_14/MINIAODSIM/PU_150X_mcRun4_realistic_v1_STD_Run4D110_PU-v1/2580000/d36375f7-f900-43b6-9089-7262d79b2393.root'),
     inputCommands = cms.untracked.vstring(
         'keep *',
         'drop l1tTkPrimaryVertexs_L1TkPrimaryVertex__RECO'
@@ -58,7 +58,7 @@ process.jetTree = cms.EDAnalyzer("JetTreeProducer",
     bsTag = cms.InputTag("offlineBeamSpot"),
     # Generated particles input tag (z-position)
 #    genParticlesTag = cms.InputTag("genParticles:xyz0"),
-    genParticlesTag = cms.InputTag("prunedGenParticles"),
+    genParticlesTag = cms.InputTag("packedGenParticles"),#prunedGenParticles
     # Generated vertex input tag
     genVertexTag = cms.InputTag("generatorSmeared")
 #    doAllPFParticles = cms.bool(True) 
@@ -81,7 +81,7 @@ process.TFileService = cms.Service("TFileService",
 #  fileName = cms.string('/eos/user/m/mrkim/JetTreeOutput/jetTree_QCD_200PU_PFincldNEUTRAL.root'),  # This is where the flat ROOT file will be stored
 #  fileName = cms.string('/eos/user/m/mrkim/JetTreeOutput/jetTree_QCD_noPU_PFincldNEUTRAL_dzCut3D_newHR.root'),  # This is where the flat ROOT file will be stored
 #  fileName = cms.string("root://eosuser.cern.ch//eos/user/m/mrkim/JetTreeOutput/jetTree_QCD_noPU_PFincldNEUTRAL_dzCut3D_newHR.root"),  # This is where the flat ROOT file will be stored
-  fileName = cms.string('/eos/user/m/mrkim/JetTreeOutput/jetTree_QCD_200PU_PFincldNEUTRAL_dzCut3D_newHR.root'),  # This is where the flat ROOT file will be stored
+  fileName = cms.string('/eos/user/m/mrkim/JetTreeOutput/jetTree_QCD_noPU_PFincldNEUTRAL_dzCut3D_newHR_PVcut_packedGEN.root'),  # This is where the flat ROOT file will be stored
   closeFileFast = cms.untracked.bool(True)
 )
 # Path

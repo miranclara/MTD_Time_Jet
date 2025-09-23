@@ -508,7 +508,7 @@ int nPUJets_time_, nRecoJets_time_;
   std::vector<float> pf_vertex,pf_pt, pf_eta, pf_phi, pf_energy;
   std::vector<float> pf_charge,pf_puppiWeight,pf_puppiWeightNoLep;//For <pat::PackedCandidate> collection
   std::vector<float> pf_dxy, pf_dz, pf_dzError, pf_dzSig;
-  std::vector<float> pf_time, pf_timeError, pf_dtSig;//For <pat::PackedCandidate> collection
+  std::vector<float> pf_time, pf_timeError, pf_dt, pf_dtErr, pf_dtSig;//For <pat::PackedCandidate> collection
   std::vector<float> pf_vx, pf_vy, pf_vz;
 
   std::vector<int> pf_pdgId;
@@ -520,6 +520,7 @@ int nPUJets_time_, nRecoJets_time_;
  
   std::vector<int> pf_keepAlways;//was bool
   std::vector<int> pf_keepDisplaced;//was bool
+  std::vector<int> pf_hasTimeCompatibleWithPV;//New add
   std::vector<int> pf_isInMTD;//was bool
   std::vector<int> pf_isCharged;//was bool
   std::vector<int> pf_hasValidTime;//was bool
@@ -560,7 +561,7 @@ int nPUJets_time_, nRecoJets_time_;
  
   int totalRecoJets = 0;
   int totalPUJets = 0;
-  float puJetFraction_all = 0;//Not saved
+  float puJetFraction_all_ = 0;//Not saved
 
   int totalRecoJets_puppi = 0; 
   int totalPUJets_puppi = 0; 
@@ -792,6 +793,8 @@ void JetTreeProducer::beginJob() {
   tree_->Branch("pf_dzSig", &pf_dzSig);
   tree_->Branch("pf_time", &pf_time);
   tree_->Branch("pf_timeError", &pf_timeError);
+  tree_->Branch("pf_dt", &pf_dt);
+  tree_->Branch("pf_dtErr", &pf_dtErr);
   tree_->Branch("pf_dtSig", &pf_dtSig);
 
   tree_->Branch("pf_isInMTD", &pf_isInMTD);
@@ -804,6 +807,7 @@ void JetTreeProducer::beginJob() {
   tree_->Branch("pf_passes4D", &pf_passes4D);
   tree_->Branch("pf_keepAlways", &pf_keepAlways);
   tree_->Branch("pf_keepDisplaced",  &pf_keepDisplaced);
+  tree_->Branch("pf_hasTimeCompatibleWithPV",  &pf_hasTimeCompatibleWithPV);
 
   tree_->Branch("pf_vx", &pf_vx);
   tree_->Branch("pf_vy", &pf_vy);
@@ -812,16 +816,54 @@ void JetTreeProducer::beginJob() {
   tree_->Branch("pf_pdgId", &pf_pdgId);  
   tree_->Branch("pf_isHS", &pf_isHS);
   tree_->Branch("pf_fromPV", &pf_fromPV);
+ 
+ 
+  float efficiency_puppi_, purity_puppi_;
+  float efficiency_pfraw_, purity_pfraw_;//defined but not used
+  float efficiency_fromPV3_, purity_fromPV3_;//defined but not used
+  float efficiency_tight_, purity_tight_;
+  float efficiency_loose_, purity_loose_;
+  float efficiency_time_, purity_time_;//defined but not used
+
+  tree_->Branch("totalRecoJets_pfraw", &totalRecoJets_pfraw,"totalRecoJets_pfraw/I");
+  tree_->Branch("totalRecoJets_fromPV3", &totalRecoJets_fromPV3,"totalRecoJets_fromPV3/I");
+  tree_->Branch("totalRecoJets_tight", &totalRecoJets_tight,"totalRecoJets_tight/I");
+  tree_->Branch("totalRecoJets_loose", &totalRecoJets_loose,"totalRecoJets_loose/I");
+  tree_->Branch("totalRecoJets_time", &totalRecoJets_time,"totalRecoJets_time/I");
   
+
+  tree_->Branch("totalPUJets_puppi", &totalPUJets_puppi,"totalPUJets_puppi/I");
+  tree_->Branch("totalPUJets_pfraw", &totalPUJets_pfraw,"totalPUJets_pfraw/I");
+  tree_->Branch("totalPUJets_fromPV3", &totalPUJets_fromPV3,"totalPUJets_fromPV3/I");
+  tree_->Branch("totalPUJets_tight", &totalPUJets_tight,"totalPUJets_tight/I");
+  tree_->Branch("totalPUJets_loose", &totalPUJets_loose,"totalPUJets_loose/I");
+  tree_->Branch("totalPUJets_time", &totalPUJets_time,"totalPUJets_time/I");
+  
+
+  tree_->Branch("puJetFraction_puppi_all", &puJetFraction_puppi_all_,"puJetFraction_puppi_all/F");
+  tree_->Branch("puJetFraction_pfraw_all", &puJetFraction_pfraw_all_,"puJetFraction_pfraw_all/F");
+  tree_->Branch("puJetFraction_fromPV3_all", &puJetFraction_fromPV3_all_,"puJetFraction_fromPV3_all/F");
+  tree_->Branch("puJetFraction_tight_all", &puJetFraction_tight_all_,"puJetFraction_tight_all/F");
+  tree_->Branch("puJetFraction_loose_all", &puJetFraction_loose_all_,"puJetFraction_loose_all/F");
+  tree_->Branch("puJetFraction_time_all", &puJetFraction_time_all_,"puJetFraction_time_all/F");
+
+  tree_->Branch("efficiency_puppi", &efficiency_puppi_,"efficiency_puppi/F");
+  tree_->Branch("purity_puppi", &purity_puppi_,"purity_puppi/F");
+  tree_->Branch("efficiency_pfraw", &efficiency_pfraw_,"efficiency_pfraw/F");
+  tree_->Branch("purity_pfraw", &purity_pfraw_,"purity_pfraw/F");
+  tree_->Branch("efficiency_fromPV3", &efficiency_fromPV3_,"efficiency_fromPV3/F");
+  tree_->Branch("purity_fromPV3", &purity_fromPV3_,"purity_fromPV3/F");
   tree_->Branch("efficiency_tight", &efficiency_tight_,"efficiency_tight/F");
   tree_->Branch("purity_tight", &purity_tight_,"purity_tight/F");
   tree_->Branch("efficiency_loose", &efficiency_loose_,"efficiency_loose/F");
   tree_->Branch("purity_loose", &purity_loose_,"purity_loose/F");
+  tree_->Branch("efficiency_time", &efficiency_time_,"efficiency_time/F");
+  tree_->Branch("purity_time", &purity_time_,"purity_time/F");
 
   tree_->Branch("pf_indices_pfraw", &pf_indices_general_all_);
-  tree_->Branch("pf_indices_pfraw", &pf_indices_puppi_all_);
-  tree_->Branch("pf_indices_pfraw", &pf_indices_pfraw_all_);
-  tree_->Branch("pf_indices_pfraw", &pf_indices_fromPV3_all_);
+  tree_->Branch("pf_indices_puppi_all", &pf_indices_puppi_all_);
+  tree_->Branch("pf_indices_pfraw_all", &pf_indices_pfraw_all_);
+  tree_->Branch("pf_indices_fromPV3_all", &pf_indices_fromPV3_all_);
   tree_->Branch("pf_indices_tight", &pf_indices_tight_all_);
   tree_->Branch("pf_indices_loose", &pf_indices_loose_all_);
   tree_->Branch("pf_indices_MTD", &pf_indices_time_all_);
@@ -937,6 +979,8 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   pf_dzSig.clear();
   pf_time.clear();
   pf_timeError.clear();
+  pf_dt.clear();
+  pf_dtErr.clear();
   pf_dtSig.clear();
   pf_vx.clear();
   pf_vy.clear();
@@ -967,6 +1011,7 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   pf_passes4D.clear();
   pf_keepAlways.clear();
   pf_keepDisplaced.clear();
+  pf_hasTimeCompatibleWithPV.clear();
 
  
   jetDeltaR_puppi_all_.clear();
@@ -1083,7 +1128,7 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   puFracCount_time_5leading_.clear();
 */
 
-  
+ 
   int N_HS_total = 0;
 //  int N_selected = 0;
   int N_selected_fromPV3 = 0;
@@ -1237,7 +1282,7 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
           isInMTD &&        //Ensures only trust time info(in MTD acceptance)
           tErr > 0 &&
           tErr < 0.2 &&     // Conservative threshold (30â50 ps typical)
-          std::abs(t) < 100 // sanity check: time should be < 100 ns
+          std::abs(t) <10  // sanity check: time should be < 10 ns, change from 100 to 10=>Selection result not changed. 
       );
       pf_hasValidTime.push_back(hasValidTime ? 1 : 0);//
      
@@ -1245,10 +1290,13 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
       if (hasValidTime) {
       //Safe to use time
         float dt = t - pvs_t_;
+        float dtErr =std::sqrt( tErr*tErr + pvs_TimeErr_*pvs_TimeErr_ );
         float dtSig = dt / std::sqrt(tErr*tErr + pvs_TimeErr_*pvs_TimeErr_);//
 
         pf_time.push_back(pf.time());
         pf_timeError.push_back(pf.timeError());
+        pf_dt.push_back(dt);
+        pf_dtErr.push_back(dtErr);
         pf_dtSig.push_back(dtSig);
   
         // Optional: log debug info
@@ -1261,6 +1309,8 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
         // Invalid or missing time
         pf_time.push_back(-999);
         pf_timeError.push_back(999);
+        pf_dt.push_back(999);
+        pf_dtErr.push_back(999);
         pf_dtSig.push_back(999);
 
 //        edm::LogVerbatim("JetTreeProducer::TimeDebug")
@@ -1276,6 +1326,7 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
       bool passesTightCut = (std::abs(dz) < 0.03 && dzSig < 0.2);//3D tight selection
       bool passesLooseCut = (std::abs(dz) < 0.05 && dzSig < 0.5);//3D loos selection
       bool keepDisplaced = (isDisplaced && hasValidTime);//4D selection
+      bool hasTimeCompatibleWithPV= hasValidTime && (std::abs(dtSig) < dtSigCut);
       bool passes3D = (std::abs(dz) < dzCut) && (std::abs(dzSig) < dzSigCut);
       bool passes4D = passes3D && hasValidTime && (std::abs(dtSig) < dtSigCut);      
 
@@ -1283,6 +1334,7 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
       pf_passesLooseCut.push_back(passesLooseCut ? 1 : 0);
       pf_keepAlways.push_back(keepAlways ? 1 : 0);
       pf_keepDisplaced.push_back(keepDisplaced ? 1 : 0);
+      pf_hasTimeCompatibleWithPV.push_back(hasTimeCompatibleWithPV ? 1 : 0);
       pf_passes3D.push_back(passesLooseCut ? 1 : 0);
       pf_passes4D.push_back(passesLooseCut ? 1 : 0);
 
@@ -1307,7 +1359,8 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
       }
         // MTD-based selection
 //      if (pf.isTimeValid() && pf.timeError() < 0.05) {//pat::PackedCandidate does not have a method called .isTimeValid()
-      if (hasValidTime) {
+//      if (hasValidTime) {
+      if (hasTimeCompatibleWithPV) {
       
         fastjet::PseudoJet pj_time(pf.px(), pf.py(), pf.pz(), pf.energy());
         pj_time.set_user_index(pf_for_time.size());//index back to PackedCandidate
@@ -1322,6 +1375,8 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
       pf_dzSig.push_back(0);
       pf_time.push_back(0);
       pf_timeError.push_back(1e6);
+      pf_dt.push_back(1e6);
+      pf_dtErr.push_back(1e6);
       pf_dtSig.push_back(1e6);
       fjInputs_fromPV3.push_back(pj);
       fjInputs_tight.push_back(pj);
@@ -1399,7 +1454,7 @@ for (const auto& jet : timeJets) {
     float jetT = (sumPt>0) ? sumWeightedT/sumPt : -999;// weighted jet time
     float jetTerr = (sumPt>0) ? std::sqrt(sumVar)/sumPt : 999;//uncertainty on jet time,estimated error
     // Jet time significance=distance between jet time and primary vertex time
-    float jetTsig = (jetTerr>0) ? (jetT - pvs_t_)/jetTerr : 999;
+    float jetTsig = (jetTerr>0) ? fabs(jetT - pvs_t_)/jetTerr : 999;
 
     // Save
     jetTime_time_all_.push_back(jetT);
@@ -1433,7 +1488,7 @@ auto processJetCollection = [&](const std::vector<pat::Jet>& jetsIn,
 				//per-collection summary variables
                                 int& totalRecoJets,
                                 int& totalPUJets,
-                                float& puJetFraction_all,
+                                float& puJetFraction_all_,
 				float& efficiency_out,
 				float& purity_out) {
     int idx = 0;
@@ -1507,7 +1562,7 @@ auto processJetCollection = [&](const std::vector<pat::Jet>& jetsIn,
     }
 
     //PU jet fraction
-    puJetFraction_all = (totalRecoJets > 0)
+    puJetFraction_all_ = (totalRecoJets > 0)
         ? static_cast<float>(totalPUJets) / totalRecoJets
         : -1.0f;
    
@@ -1546,7 +1601,7 @@ auto processFastJetCollection = [&](const std::vector<fastjet::PseudoJet>& jetsI
 
                                 int& totalRecoJets,
                                 int& totalPUJets,
-                                float& puJetFraction_all,
+                                float& puJetFraction_all_,
 				float& efficiency_out,
 				float& purity_out) {
     int idx = 0;
@@ -1619,7 +1674,7 @@ auto processFastJetCollection = [&](const std::vector<fastjet::PseudoJet>& jetsI
         idx++;
     }
     // PU jet fraction
-    puJetFraction_all = (totalRecoJets > 0)
+    puJetFraction_all_ = (totalRecoJets > 0)
         ? static_cast<float>(totalPUJets) / totalRecoJets
         : -1.0f;
    
@@ -1738,7 +1793,7 @@ std::cout << "PF candidates: " << pf_pt.size()
           << " hasValidTime: " << pf_hasValidTime.size()
           << std::endl;
 
-//tree_->Fill();
+tree_->Fill();
 
 
 }//End of void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) {

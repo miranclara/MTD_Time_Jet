@@ -24,6 +24,7 @@
 #include "SimDataFormats/GeneratorProducts/interface/HepMCProduct.h"
 #include "DataFormats/PatCandidates/interface/PackedCandidate.h"
 #include "DataFormats/ParticleFlowCandidate/interface/PFCandidate.h"
+#include "DataFormats/PatCandidates/interface/PackedGenParticle.h"
 
 #include "TTree.h"
 #include "TFile.h"
@@ -45,6 +46,95 @@ struct PrimaryVertex {
 
 //GenJet matching + jet classification (ΔR + pT cut, clean HS/PU)
 namespace {
+
+
+// ===================
+//  Helper Functions
+// ===================
+// ======================================================
+// Helper 0: Extract PF indices from pat::Jet
+// ======================================================
+inline std::vector<unsigned int> getPFIndicesFromPatJet(const pat::Jet& jet) {
+    std::vector<unsigned int> pf_indices_this_jet;
+    pf_indices_this_jet.reserve(jet.numberOfDaughters());
+
+    for (const auto& candPtr : jet.getJetConstituents()) {
+        // Try casting to PackedCandidate
+        const auto* pfcand = dynamic_cast<const pat::PackedCandidate*>(candPtr.get());
+        if (!pfcand) continue;
+
+        // Use key() as PF index (aligned with event-level PF collection)
+        unsigned int pfIdx = candPtr.key();
+        pf_indices_this_jet.push_back(pfIdx);
+
+        // If you have a custom userInt index stored earlier:
+        // unsigned int pfIdx = pfcand->userInt("pfIdx");
+    }
+
+    return pf_indices_this_jet;
+}
+
+// ======================================================
+// Helper 00: Extract PF indices from fastjet::PseudoJet
+// ======================================================
+inline std::vector<unsigned int> getPFIndicesFromPseudoJet(
+    const fastjet::PseudoJet& jet,
+    const std::vector<const pat::PackedCandidate*>& pfAll)
+{
+    std::vector<unsigned int> out;
+    std::vector<fastjet::PseudoJet> consts = jet.constituents();
+
+    for (const auto &c : consts) {
+        int idx = c.user_index();
+        if (idx < 0 || static_cast<size_t>(idx) >= pfAll.size()) {
+            edm::LogWarning("getPFIndicesFromPseudoJet")
+            << "Invalid user_index=" << idx
+            << " pfAll.size()=" << pfAll.size();
+            continue;//skip this constituent instead of dereferencing
+        }
+        const pat::PackedCandidate* pf = pfAll[idx];
+        out.push_back(static_cast<unsigned int>(idx));
+    }
+    return out;
+}//End of getPFIndicesFromPseudoJet()
+
+//---Helper Function1:  PF candidate  ↔   GenParticle matching---
+//Find the generator-level particle that this specific PF candidate came from.It works at the constituent particle level, not jet level.
+//Adjust minDR or relax the pdgId requirement if needed.
+const pat::PackedGenParticle* matchToGen(const pat::PackedCandidate& pf,
+                                    const std::vector<pat::PackedGenParticle>& genParticles) {
+  float minDR = 0.05; // tighter matching for individual particles
+  const pat::PackedGenParticle* bestMatch = nullptr;
+
+  for (const auto& gen : genParticles) {
+    // Require same particle type (optional: comment out if you want looser matching)
+    if (std::abs(pf.pdgId()) != std::abs(gen.pdgId())) continue;
+
+    float dR = reco::deltaR(pf.eta(), pf.phi(), gen.eta(), gen.phi());
+    if (dR < minDR) {
+      minDR = dR;
+      bestMatch = &gen;
+    }
+  }
+  return bestMatch;
+}
+
+
+// --- Helper Function3: Jet ↔ GenJet Jetresponse calcultation---
+inline float computeResponse(const pat::Jet& recoJet,
+                              const reco::GenJet* matchedGenJet) {
+    if (!matchedGenJet || matchedGenJet->pt() <= 0) return -1.0f;
+    return recoJet.pt() / matchedGenJet->pt();
+}
+
+inline float computeResponse(const fastjet::PseudoJet& fjJet,
+                              const reco::GenJet* matchedGenJet) {
+    if (!matchedGenJet || matchedGenJet->pt() <= 0) return -1.0f;
+    return fjJet.pt() / matchedGenJet->pt();
+}
+
+
+
   // Return best gen-jet match that passes both ΔR and pt cuts (or nullptr)
   inline const reco::GenJet* //returns a pointer to the best-matching gen jet (or nullptr if no match).
   bestGenMatch(const reco::Jet& j,//the reconstructed jet we want to match.
@@ -158,10 +248,11 @@ namespace {
 //Helper: classify a PF as PU (reco-level)
 //On MiniAOD you typically don’t have full pileup truth for each GenParticle. The most stable way to get PU-content per jet is reco-level vertex association for charged constituents, and timing/PUPPI heuristics for neutrals.
 namespace {
+
   // Quality cut values you can tune
-  constexpr float kMaxDz      = 0.03;  // cm
-  constexpr float kMaxDzSig   = 2.0;   // unitless
-  constexpr float kTimeNSigma = 3.0;   // |(t - tPV)/σ|
+  constexpr float kMaxDz      = 5.0;  // cm, 0.03->5
+  constexpr float kMaxDzSig   = 30.0;   // unitless 2->30
+  constexpr float kTimeNSigma = 10.0;   // |(t - tPV)/σ|,3->10 
 
   inline bool isChargedPU(const pat::PackedCandidate &pf)
   {
@@ -172,7 +263,7 @@ namespace {
   // - use fromPV() which returns an int (3 means "from PV", 2 ambiguous, etc.)
   // - use dz() rather than dzSig() if dzSig() is not available
 
-  const int kMaxDzAbs = 0.5; // tune as needed (was using dzSig limit before)
+  const int kMaxDzAbs = 5; // tune as needed (was using dzSig limit before)0.5->5
   const int fromPV = pf.fromPV(); // 3 is highest quality (fromPV==3 => from PV)
   const bool goodPVQual = (fromPV == 3 || fromPV == 2); // treat 2 as acceptable (adjust if needed)
 
@@ -210,6 +301,7 @@ namespace {
     return false;
   }//End of inline bool isNeutralPU(const pat::PackedCandidate& pf, float pvTime, bool useTimingFallbackPuppi)
 
+
   struct PUContentReco {//A data container that defines to summarize PU content[count fractions (nPU/nTot),pt fractions (sumPtPU/sumPtTot)] at the jet level
     int   nTot = 0;//Total number of PF candidates in this jet (all constituents)
     int   nPU  = 0;//Number of PF candidates identified as pileup.
@@ -217,6 +309,14 @@ namespace {
     float sumPtPU  = 0.f;//Sum of the transverse momentum of only the PU PF candidates.
   };//End of struct PUContentReco 
 }//End of namespace
+
+struct PFTruthContentReco {
+  int nTot   = 0;   // all PFs in the jet
+  int nPU    = 0;   // PFs matched to PU gen particles
+  float sumPtTot = 0.f;
+  float sumPtPU  = 0.f;
+};
+
 
 // Common helper: update PUContentReco given one PF candidate
 inline void updatePUContentReco(const pat::PackedCandidate* pf,
@@ -252,6 +352,33 @@ inline void updatePUContentReco(const pat::PackedCandidate* pf,
     #endif
   }
 }//End of void updatePUContentReco
+
+inline void updatePFTruthContentReco(const pat::PackedCandidate& pf,
+                                     PFTruthContentReco& acc,
+                                     const std::vector<pat::PackedGenParticle>& genParticles)
+{
+  // Always update totals
+  ++acc.nTot;
+  acc.sumPtTot += pf.pt();
+
+  // Try to match PF to gen-level particle
+  const pat::PackedGenParticle* genMatch = matchToGen(pf, genParticles);
+
+  if (genMatch) {
+    // CMS convention: PU gen particles come from pileup vertices
+    // Simplest way: check that it's not from the hard-scatter vertex
+    // Here we use genParticle.statusFlags() if available, otherwise
+    // fall back on event selection (no eventId() in pat::PackedCandidate).
+    bool isPU = (genMatch->vertex().z() != 0.0); // crude, refine as needed
+
+    if (isPU) {
+      ++acc.nPU;
+      acc.sumPtPU += pf.pt();
+    }
+  }
+}//End of void updatePFTruthContentReco
+
+
 
 //Function: compute PU fractions for one jet
 PUContentReco computePUContentRecoJet(//A function that returns PUContentRec
@@ -369,7 +496,8 @@ private:
   edm::EDGetTokenT<std::vector<reco::Vertex>> pvsToken_;
   edm::EDGetTokenT<reco::BeamSpot> bsToken_;
   //edm::EDGetTokenT<math::XYZPointF> genpToken_;
-  edm::EDGetTokenT<std::vector<reco::GenParticle>> genParticlesToken_;
+//  edm::EDGetTokenT<std::vector<reco::GenParticle>> genParticlesToken_;//AODSIM
+  edm::EDGetTokenT<std::vector<pat::PackedGenParticle>> genParticlesToken_;
   edm::EDGetTokenT<edm::HepMCProduct> genvertexToken_;
   
   TTree* tree_;
@@ -399,6 +527,8 @@ int nPUJets_time_, nRecoJets_time_;
   std::vector<float> genPt_puppi_all_;
   std::vector<float> puFracPt_puppi_all_;
   std::vector<float> puFracCount_puppi_all_;
+  std::vector<float> puFracPt_truth_puppi_all_;
+  std::vector<float> puFracCount_truth_puppi_all_;
 
 
 /*
@@ -419,6 +549,8 @@ int nPUJets_time_, nRecoJets_time_;
   std::vector<float> jetAbsEta_pfraw_all_;
   std::vector<float> puFracPt_pfraw_all_;
   std::vector<float> puFracCount_pfraw_all_;
+  std::vector<float> puFracPt_truth_pfraw_all_;
+  std::vector<float> puFracCount_truth_pfraw_all_;
 
 /*
   std::vector<float> jetPt_pfraw_5leading_;
@@ -436,6 +568,8 @@ int nPUJets_time_, nRecoJets_time_;
   std::vector<float> jetAbsEta_fromPV3_all_;
   std::vector<float> puFracPt_fromPV3_all_;
   std::vector<float> puFracCount_fromPV3_all_;
+  std::vector<float> puFracPt_truth_fromPV3_all_;
+  std::vector<float> puFracCount_truth_fromPV3_all_;
 
 /*
   std::vector<float> jetPt_fromPV3_5leading_;
@@ -453,6 +587,8 @@ int nPUJets_time_, nRecoJets_time_;
   std::vector<float> jetAbsEta_tight_all_;
   std::vector<float> puFracPt_tight_all_;
   std::vector<float> puFracCount_tight_all_;
+  std::vector<float> puFracPt_truth_tight_all_;
+  std::vector<float> puFracCount_truth_tight_all_;
 
 /* 
   std::vector<float> jetPt_tight_5leading_;
@@ -470,6 +606,8 @@ int nPUJets_time_, nRecoJets_time_;
   std::vector<float> jetAbsEta_loose_all_;
   std::vector<float> puFracPt_loose_all_;
   std::vector<float> puFracCount_loose_all_;
+  std::vector<float> puFracPt_truth_loose_all_;
+  std::vector<float> puFracCount_truth_loose_all_;
  /*
   std::vector<float> jetPt_loose_5leading_;
   std::vector<float> genPt_loose_5leading_;
@@ -487,6 +625,8 @@ int nPUJets_time_, nRecoJets_time_;
   std::vector<float> jetAbsEta_time_all_;
   std::vector<float> puFracPt_time_all_;
   std::vector<float> puFracCount_time_all_;
+  std::vector<float> puFracPt_truth_time_all_;
+  std::vector<float> puFracCount_truth_time_all_;
 
 /*
   std::vector<float> jetPt_time_5leading_;
@@ -517,6 +657,11 @@ int nPUJets_time_, nRecoJets_time_;
   std::vector<int> pf_passesLooseCut;//was bool
   std::vector<int> pf_passes3D;//was bool
   std::vector<int> pf_passes4D;//was bool
+
+  std::vector<int> pf_isHS_algo;//test
+  std::vector<int> pf_isPU_algo;//test
+  std::vector<int> pf_isHS_truth;//test
+  std::vector<int> pf_isPU_truth;//test
  
   std::vector<int> pf_keepAlways;//was bool
   std::vector<int> pf_keepDisplaced;//was bool
@@ -602,7 +747,7 @@ JetTreeProducer::JetTreeProducer(const edm::ParameterSet& iConfig)//:
   pvsToken_ = consumes<std::vector<reco::Vertex>>(iConfig.getParameter<edm::InputTag>("pvTag"));
   bsToken_ = consumes<reco::BeamSpot>(edm::InputTag("offlineBeamSpot"));
 //  genpToken_ = consumes<math::XYZPointF>(iConfig.getParameter<edm::InputTag>("genParticlesTag"));
-  genParticlesToken_ = consumes<std::vector<reco::GenParticle>>(iConfig.getParameter<edm::InputTag>("genParticlesTag"));
+  genParticlesToken_ = consumes<std::vector<pat::PackedGenParticle>>(iConfig.getParameter<edm::InputTag>("genParticlesTag"));
   genvertexToken_ = consumes<edm::HepMCProduct>(edm::InputTag("generatorSmeared"));
 
 }
@@ -642,6 +787,8 @@ void JetTreeProducer::beginJob() {
   tree_->Branch("jetAbsEta_puppi_all", &jetAbsEta_puppi_all_);  
   tree_->Branch("puFracPt_puppi_all", &puFracPt_puppi_all_);
   tree_->Branch("puFracCount_puppi_all", &puFracCount_puppi_all_);  
+  tree_->Branch("puFracPt_truth_puppi_all", &puFracPt_truth_puppi_all_);
+  tree_->Branch("puFracCount_truth_puppi_all", &puFracCount_truth_puppi_all_);  
 
   /*
   tree_->Branch("jetPt_puppi_5leading", &jetPt_puppi_5leading_);
@@ -659,6 +806,8 @@ void JetTreeProducer::beginJob() {
   tree_->Branch("jetAbsEta_pfraw_all", &jetAbsEta_pfraw_all_); 
   tree_->Branch("puFracPt_pfraw_all", &puFracPt_pfraw_all_);
   tree_->Branch("puFracCount_pfraw_all", &puFracCount_pfraw_all_);  
+  tree_->Branch("puFracPt_truth_pfraw_all", &puFracPt_truth_pfraw_all_);
+  tree_->Branch("puFracCount_truth_pfraw_all", &puFracCount_truth_pfraw_all_);  
 
  /*
   tree_->Branch("jetResponse_PR_pfraw_5leading", &jetResponse_PR_pfraw_5leading_);
@@ -676,6 +825,8 @@ void JetTreeProducer::beginJob() {
   tree_->Branch("jetAbsEta_fromPV3_all", &jetAbsEta_fromPV3_all_); 
   tree_->Branch("puFracPt_fromPV3_all", &puFracPt_fromPV3_all_);
   tree_->Branch("puFracCount_fromPV3_all", &puFracCount_fromPV3_all_);  
+  tree_->Branch("puFracPt_truth_fromPV3_all", &puFracPt_truth_fromPV3_all_);
+  tree_->Branch("puFracCount_truth_fromPV3_all", &puFracCount_truth_fromPV3_all_);  
 
  /*
   tree_->Branch("jetResponse_PR_fromPV3_5leading", &jetResponse_PR_fromPV3_5leading_);
@@ -693,6 +844,8 @@ void JetTreeProducer::beginJob() {
   tree_->Branch("jetAbsEta_tight_all", &jetAbsEta_tight_all_);
   tree_->Branch("puFracPt_tight_all", &puFracPt_tight_all_);
   tree_->Branch("puFracCount_tight_all", &puFracCount_tight_all_);  
+  tree_->Branch("puFracPt_truth_tight_all", &puFracPt_truth_tight_all_);
+  tree_->Branch("puFracCount_truth_tight_all", &puFracCount_truth_tight_all_);  
 
 /*  
   tree_->Branch("jetPt_tight_5leading", &jetPt_tight_5leading_);
@@ -710,6 +863,8 @@ void JetTreeProducer::beginJob() {
   tree_->Branch("genPt_loose_all", &genPt_loose_all_);
   tree_->Branch("puFracPt_loose_all", &puFracPt_loose_all_);
   tree_->Branch("puFracCount_loose_all", &puFracCount_loose_all_);  
+  tree_->Branch("puFracPt_truth_loose_all", &puFracPt_truth_loose_all_);
+  tree_->Branch("puFracCount_truth_loose_all", &puFracCount_truth_loose_all_);  
 
 /*
   tree_->Branch("jetResponse_PR_loose_5leading", &jetResponse_PR_loose_5leading_);
@@ -727,6 +882,8 @@ void JetTreeProducer::beginJob() {
   tree_->Branch("genPt_time_all", &genPt_time_all_);
   tree_->Branch("puFracPt_time_all", &puFracPt_time_all_);
   tree_->Branch("puFracCount_time_all", &puFracCount_time_all_);  
+  tree_->Branch("puFracPt_truth_time_all", &puFracPt_truth_time_all_);
+  tree_->Branch("puFracCount_truth_time_all", &puFracCount_truth_time_all_);  
 
 /*
   tree_->Branch("jetResponse_PR_time_5leading", &jetResponse_PR_time_5leading_);
@@ -874,92 +1031,13 @@ void JetTreeProducer::beginJob() {
   tree_->Branch("puFrac_loose", &puFrac_loose_);
   tree_->Branch("puFrac_MTD", &puFrac_time_);
 
+  tree_->Branch("pf_isHS_algo", &pf_isHS_algo);//test
+  tree_->Branch("pf_isPU_algo",  &pf_isPU_algo);//test
+  tree_->Branch("pf_isHS_truth", &pf_isHS_truth);//test
+  tree_->Branch("pf_isPU_truth", &pf_isPU_truth);//test
+
+
 }//End of void JetTreeProducer::beginJob()
-
-// ===================
-//  Helper Functions
-// ===================
-// ======================================================
-// Helper 0: Extract PF indices from pat::Jet
-// ======================================================
-inline std::vector<unsigned int> getPFIndicesFromPatJet(const pat::Jet& jet) {
-    std::vector<unsigned int> pf_indices_this_jet;
-    pf_indices_this_jet.reserve(jet.numberOfDaughters());
-
-    for (const auto& candPtr : jet.getJetConstituents()) {
-        // Try casting to PackedCandidate
-        const auto* pfcand = dynamic_cast<const pat::PackedCandidate*>(candPtr.get());
-        if (!pfcand) continue;
-
-        // Use key() as PF index (aligned with event-level PF collection)
-        unsigned int pfIdx = candPtr.key();
-        pf_indices_this_jet.push_back(pfIdx);
-
-        // If you have a custom userInt index stored earlier:
-        // unsigned int pfIdx = pfcand->userInt("pfIdx");
-    }
-
-    return pf_indices_this_jet;
-}
-
-// ======================================================
-// Helper 00: Extract PF indices from fastjet::PseudoJet
-// ======================================================
-inline std::vector<unsigned int> getPFIndicesFromPseudoJet(
-    const fastjet::PseudoJet& jet,
-    const std::vector<const pat::PackedCandidate*>& pfAll)
-{
-    std::vector<unsigned int> out;
-    std::vector<fastjet::PseudoJet> consts = jet.constituents();
-
-    for (const auto &c : consts) {
-        int idx = c.user_index();
-        if (idx < 0 || static_cast<size_t>(idx) >= pfAll.size()) {
-            edm::LogWarning("getPFIndicesFromPseudoJet")
-            << "Invalid user_index=" << idx
-            << " pfAll.size()=" << pfAll.size();
-            continue;//skip this constituent instead of dereferencing
-        }
-        const pat::PackedCandidate* pf = pfAll[idx];
-        out.push_back(static_cast<unsigned int>(idx));
-    }
-    return out;
-}//End of getPFIndicesFromPseudoJet()
-
-//---Helper Function1:  PF candidate  ↔   GenParticle matching---
-//Find the generator-level particle that this specific PF candidate came from.It works at the constituent particle level, not jet level.
-//Adjust minDR or relax the pdgId requirement if needed.
-const reco::GenParticle* matchToGen(const pat::PackedCandidate& pf,
-                                    const std::vector<reco::GenParticle>& genParticles) {
-  float minDR = 0.05; // tighter matching for individual particles
-  const reco::GenParticle* bestMatch = nullptr;
-
-  for (const auto& gen : genParticles) {
-    // Require same particle type (optional: comment out if you want looser matching)
-    if (std::abs(pf.pdgId()) != std::abs(gen.pdgId())) continue;
-
-    float dR = reco::deltaR(pf.eta(), pf.phi(), gen.eta(), gen.phi());
-    if (dR < minDR) {
-      minDR = dR;
-      bestMatch = &gen;
-    }
-  }
-  return bestMatch;
-}
-
-
-// --- Helper Function3: Jet ↔ GenJet Jetresponse calcultation---
-inline float computeResponse(const pat::Jet& recoJet,
-                              const reco::GenJet* matchedGenJet) {
-    if (!matchedGenJet || matchedGenJet->pt() <= 0) return -1.0f;
-    return recoJet.pt() / matchedGenJet->pt();
-}
-
-inline float computeResponse(const fastjet::PseudoJet& fjJet,
-                              const reco::GenJet* matchedGenJet) {
-    if (!matchedGenJet || matchedGenJet->pt() <= 0) return -1.0f;
-    return fjJet.pt() / matchedGenJet->pt();
-}
 
 
 void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) {
@@ -986,6 +1064,12 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   pf_vy.clear();
   pf_vz.clear();
   pf_pdgId.clear();
+
+  pf_isHS_algo.clear();//test
+  pf_isPU_algo.clear();//test
+  pf_isHS_truth.clear();//test
+  pf_isPU_truth.clear();//test
+
 
   pf_isHS.clear();
   pf_fromPV.clear();
@@ -1026,15 +1110,17 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   genPt_puppi_all_.clear();
   jetResponse_PR_puppi_all_.clear();
   jetAbsEta_puppi_all_.clear(); 
-  puFracPt_puppi_all_.clear(), 
+  puFracPt_puppi_all_.clear(); 
   puFracCount_puppi_all_.clear();
+  puFracPt_truth_puppi_all_.clear(); 
+  puFracCount_truth_puppi_all_.clear();
 
  /*
   jetPt_puppi_5leading_.clear();
   genPt_puppi_5leading_.clear();
   jetResponse_PR_puppi_5leading_.clear();
   jetAbsEta_puppi_5leading_.clear(); 
-  puFracPt_puppi_5leading_.clear(), 
+  puFracPt_puppi_5leading_.clear(); 
   puFracCount_puppi_5leading_.clear();
 */
 
@@ -1043,8 +1129,10 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   genPt_pfraw_all_.clear();
   jetResponse_PR_pfraw_all_.clear();
   jetAbsEta_pfraw_all_.clear();
-  puFracPt_pfraw_all_.clear(), 
+  puFracPt_pfraw_all_.clear(); 
   puFracCount_pfraw_all_.clear();
+  puFracPt_truth_pfraw_all_.clear(); 
+  puFracCount_truth_pfraw_all_.clear();
 
 
   /*
@@ -1052,7 +1140,7 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   genPt_pfraw_5leading_.clear();
   jetResponse_PR_pfraw_5leading_.clear();
   jetAbsEta_pfraw_5leading_.clear();
-  puFracPt_pfraw_5leading_.clear(), 
+  puFracPt_pfraw_5leading_.clear(); 
   puFracCount_pfraw_5leading_.clear();
 */
 
@@ -1062,8 +1150,10 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   genPt_fromPV3_all_.clear();
   jetResponse_PR_fromPV3_all_.clear();
   jetAbsEta_fromPV3_all_.clear();
-  puFracPt_fromPV3_all_.clear(), 
+  puFracPt_fromPV3_all_.clear(); 
   puFracCount_fromPV3_all_.clear();
+  puFracPt_truth_fromPV3_all_.clear(); 
+  puFracCount_truth_fromPV3_all_.clear();
 
 
   /*
@@ -1071,7 +1161,7 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   genPt_fromPV3_5leading_.clear();
   jetResponse_PR_fromPV3_5leading_.clear();
   jetAbsEta_fromPV3_5leading_.clear();
-  puFracPt_fromPV3_5leading_.clear(), 
+  puFracPt_fromPV3_5leading_.clear(); 
   puFracCount_fromPV3_5leading_.clear();
 */
 
@@ -1080,15 +1170,17 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   genPt_tight_all_.clear();
   jetResponse_PR_tight_all_.clear();
   jetAbsEta_tight_all_.clear();
-  puFracPt_tight_all_.clear(), 
+  puFracPt_tight_all_.clear(); 
   puFracCount_tight_all_.clear();
+  puFracPt_truth_tight_all_.clear(); 
+  puFracCount_truth_tight_all_.clear();
 
 /*
   jetPt_tight_5leading_.clear();
   genPt_tight_5leading_.clear();
   jetResponse_PR_tight_5leading_.clear();
   jetAbsEta_tight_5leading_.clear();
-  puFracPt_tight_5leading_.clear(), 
+  puFracPt_tight_5leading_.clear(); 
   puFracCount_tight_5leading_.clear();
 */
   
@@ -1097,7 +1189,7 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   genPt_loose_all_.clear();
   jetResponse_PR_loose_all_.clear();
   jetAbsEta_loose_all_.clear();
-  puFracPt_loose_all_.clear(), 
+  puFracPt_loose_all_.clear(); 
   puFracCount_loose_all_.clear();
 
   /*
@@ -1105,7 +1197,7 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   genPt_loose_5leading_.clear();
   jetResponse_PR_loose_5leading_.clear();
   jetAbsEta_loose_5leading_.clear();
-  puFracPt_loose_5leading_.clear(), 
+  puFracPt_loose_5leading_.clear(); 
   puFracCount_loose_5leading_.clear();
 */
 
@@ -1114,8 +1206,10 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   genPt_time_all_.clear();
   jetResponse_PR_time_all_.clear();
   jetAbsEta_time_all_.clear();
-  puFracPt_time_all_.clear(), 
+  puFracPt_time_all_.clear(); 
   puFracCount_time_all_.clear();
+  puFracPt_truth_time_all_.clear(); 
+  puFracCount_truth_time_all_.clear();
 
 /*
   jetPt_time_5leading_.clear();
@@ -1124,7 +1218,7 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   jetAbsEta_time_5leading_.clear();
   jetTime_time_5leading_.clear();
   jetTimeError_time_5leading_.clear();
-  puFracPt_time_5leading_.clear(), 
+  puFracPt_time_5leading_.clear(); 
   puFracCount_time_5leading_.clear();
 */
 
@@ -1198,9 +1292,8 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   iEvent.getByToken(bsToken_, beamspot);
 
   // Retrieve gen particles (optional)
-  edm::Handle<std::vector<reco::GenParticle>> genp;
+  edm::Handle<std::vector<pat::PackedGenParticle>> genp;
   iEvent.getByToken(genParticlesToken_, genp);
-
 
   // Fill PackedCandidates
   std::vector<fastjet::PseudoJet> fjInputs_raw;
@@ -1211,7 +1304,15 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   std::vector<const pat::PackedCandidate*> pf_for_time;
   std::vector<const pat::PackedCandidate*> pf_for_allCollections;
   pf_for_allCollections.reserve(pf_coll.size());
-  
+ 
+  PUContentReco puContentAlgo;
+  PFTruthContentReco puContentTruth;
+
+  float pvTime = 0.0f;                  // or your stored primary vertex time
+  bool useTimingFallbackPuppi = true;   // set according to your config
+
+
+ 
   //---PF Particle Loop---
 
   int pf_coll_index = 0;
@@ -1232,7 +1333,29 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
     pf_vz.push_back(pf.vertex().z());
     pf_pdgId.push_back(pf.pdgId());
     pf_fromPV.push_back(pf.fromPV());
-    
+   
+    //==========PF HS/PU check====================
+    // inside pf loop, for each const pat::PackedCandidate& pf:
+    bool isPU_algo = (pf.charge() != 0)
+                    ? isChargedPU(pf)
+                    : isNeutralPU(pf, pvs_t_, /*useTimingFallbackPuppi=*/true);
+   // store algorithmic labels
+    pf_isPU_algo.push_back(isPU_algo ? 1 : 0);
+    pf_isHS_algo.push_back(isPU_algo ? 0 : 1);
+
+    // Truth classification via Gen match ---
+    bool isHS_truth = false;
+    const pat::PackedGenParticle* genMatch = matchToGen(pf, *genp);
+    if (genMatch) {
+     if (std::abs(genMatch->vz() - genvertex_z_) < 0.2)
+    isHS_truth = true;
+    }
+    // save truth
+    pf_isHS_truth.push_back(isHS_truth ? 1 : 0);
+    pf_isPU_truth.push_back(isHS_truth ? 0 : 1);
+ 
+    //==========PF HS/PU check End====================
+
     float eta = pf.eta(); 
     bool isInMTD = (std::abs(eta) <= 3.0);
     pf_isInMTD.push_back(isInMTD ? 1 : 0);      
@@ -1255,6 +1378,12 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
     int pf_coll_index = &pf - &pf_coll[0]; // index relative to pf_coll
     pj.set_user_index(pf_coll_index);// link PF index    
     fjInputs_raw.push_back(pj);//All PFS, no cut (for control)
+
+    // For algorithmic classification (you already have)
+    updatePUContentReco(&pf, puContentAlgo, pvTime, useTimingFallbackPuppi);
+
+    // For truth classification
+    updatePFTruthContentReco(pf, puContentTruth, *genp);
 
 
     if (pf.hasTrackDetails() && isCharged) {//For charged particle
@@ -1415,19 +1544,19 @@ edm::LogVerbatim("JetTreeProducer")
 // Run the jet clustering algorithm on each collection
   fastjet::JetDefinition jetDef(fastjet::antikt_algorithm, 0.4);
   auto cs_raw = fastjet::ClusterSequence(fjInputs_raw, jetDef);
-  auto pfrawJets = fastjet::sorted_by_pt(cs_raw.inclusive_jets(20.0));
+  auto pfrawJets = fastjet::sorted_by_pt(cs_raw.inclusive_jets(10.0));//eturn only jets with pt ≥ 20 GeV.
   
   auto cs_fromPV3= fastjet::ClusterSequence(fjInputs_fromPV3, jetDef);
-  auto fromPV3Jets = fastjet::sorted_by_pt(cs_fromPV3.inclusive_jets(20.0));
+  auto fromPV3Jets = fastjet::sorted_by_pt(cs_fromPV3.inclusive_jets(10.0));
   
   auto cs_tight = fastjet::ClusterSequence(fjInputs_tight, jetDef);
-  auto tightJets = fastjet::sorted_by_pt(cs_tight.inclusive_jets(20.0));
+  auto tightJets = fastjet::sorted_by_pt(cs_tight.inclusive_jets(10.0));
 
   auto cs_loose = fastjet::ClusterSequence(fjInputs_loose, jetDef);
-  auto looseJets = fastjet::sorted_by_pt(cs_loose.inclusive_jets(20.0));
+  auto looseJets = fastjet::sorted_by_pt(cs_loose.inclusive_jets(10.0));
 
   auto cs_time = fastjet::ClusterSequence(fjInputs_time, jetDef);
-  auto timeJets = fastjet::sorted_by_pt(cs_time.inclusive_jets(20.0));
+  auto timeJets = fastjet::sorted_by_pt(cs_time.inclusive_jets(10.0));
 
 //Jet-level MTD time: PU jet rejection studies using MTD timing at the jet level.
 //Computes per-jet timing observables using the MTD (Minimum Timing Detector) information stored in the PF candidates
@@ -1475,6 +1604,8 @@ auto processJetCollection = [&](const std::vector<pat::Jet>& jetsIn,
                                 std::vector<float>& genPt_all_,
                                 std::vector<float>& puFracPt_all_,
                                 std::vector<float>& puFracCount_all_,
+                                std::vector<float>& puFracPt_truth_all_,
+                                std::vector<float>& puFracCount_truth_all_,
                                 std::vector<float>& jetDeltaR_all_,
                                 std::vector<std::vector<unsigned int>>& pf_indices_general_all_,//per-jet PF indices
 /*
@@ -1531,10 +1662,19 @@ auto processJetCollection = [&](const std::vector<pat::Jet>& jetsIn,
         PUContentReco pu = computePUContentRecoJet(jet, pf_for_allCollections, pvs_t_,true);
 
        // This gives you PU fraction by count and by pT for each jet, in a way that works on MiniAOD (no need for full pileup GenParticles).
-       //puFracCount = fraction of PF candidates that are PU.
-       //puFracPt = fraction of PF sum-pT from PU
+       //puFracCount = fraction of PF candidates that are PU,algorithm-based
+       //puFracPt = fraction of PF sum-pT from PU,algorithm-based
        const float puFracCount = (pu.nTot > 0)       ? float(pu.nPU)     / pu.nTot     : -1.f;
        const float puFracPt    = (pu.sumPtTot > 0.f) ? pu.sumPtPU        / pu.sumPtTot : -1.f;
+      //truth-based
+       const float puFracCount_truth = (puContentTruth.nTot > 0) 
+                                       ? float(puContentTruth.nPU) / puContentTruth.nTot 
+                                       : -1.f;
+
+       const float puFracPt_truth    = (puContentTruth.sumPtTot > 0.f) 
+                                       ? puContentTruth.sumPtPU / puContentTruth.sumPtTot 
+                                       : -1.f;
+
 
         // Save ALL jets
         jetPt_all_.push_back(jet.pt());
@@ -1542,8 +1682,10 @@ auto processJetCollection = [&](const std::vector<pat::Jet>& jetsIn,
         genPt_all_.push_back(matchedGenJet ? matchedGenJet->pt() : -1.0);
         jetResponse_all_.push_back(response);
         jetIsHS_all_.push_back(truth.isHS ? 1 : 0);
-        puFracCount_all_.push_back(puFracCount);
-        puFracPt_all_.push_back(puFracPt);
+        puFracCount_all_.push_back(puFracCount);//algorithm-based
+        puFracPt_all_.push_back(puFracPt);//algorithm-based
+        puFracCount_truth_all_.push_back(puFracCount_truth);//truth-based
+        puFracPt_truth_all_.push_back(puFracPt_truth);//truth-based
 
        //Charged classification is robust (PV association). Neutral classification uses timing when available, falling back to a conservative PUPPI weight heuristic.
        
@@ -1588,6 +1730,8 @@ auto processFastJetCollection = [&](const std::vector<fastjet::PseudoJet>& jetsI
                                 std::vector<float>& genPt_all_,
                                 std::vector<float>& puFracPt_all_,
                                 std::vector<float>& puFracCount_all_,
+                                std::vector<float>& puFracPt_truth_all_,
+                                std::vector<float>& puFracCount_truth_all_,
                                 std::vector<float>& jetDeltaR_all_,
                                 std::vector<std::vector<unsigned int>>& pf_indices_general_all_,//per-jet PF indices
 /*
@@ -1646,10 +1790,19 @@ auto processFastJetCollection = [&](const std::vector<fastjet::PseudoJet>& jetsI
 
 
        // This gives you PU fraction by count and by pT for each jet, in a way that works on MiniAOD (no need for full pileup GenParticles).
-       //puFracCount = fraction of PF candidates that are PU.
-       //puFracPt = fraction of PF sum-pT from PU
+       //puFracCount = fraction of PF candidates that are PU, algorithm-based
+       //puFracPt = fraction of PF sum-pT from PU, algorithm-based
        const float puFracCount = (pu.nTot > 0)       ? float(pu.nPU)     / pu.nTot     : -1.f;
        const float puFracPt    = (pu.sumPtTot > 0.f) ? pu.sumPtPU        / pu.sumPtTot : -1.f;
+
+       //truth-base
+       const float puFracCount_truth = (puContentTruth.nTot > 0) 
+                                       ? float(puContentTruth.nPU) / puContentTruth.nTot 
+                                       : -1.f;
+
+       const float puFracPt_truth    = (puContentTruth.sumPtTot > 0.f) 
+                                       ? puContentTruth.sumPtPU / puContentTruth.sumPtTot 
+                                       : -1.f;
 
         // Save ALL jets
         jetPt_all_.push_back(jet.pt());
@@ -1657,8 +1810,10 @@ auto processFastJetCollection = [&](const std::vector<fastjet::PseudoJet>& jetsI
         genPt_all_.push_back(matchedGenJet ? matchedGenJet->pt() : -1.0);
         jetResponse_all_.push_back(response);
         jetIsHS_all_.push_back(truth.isHS ? 1 : 0);
-        puFracCount_all_.push_back(puFracCount);
-        puFracPt_all_.push_back(puFracPt);
+        puFracCount_all_.push_back(puFracCount);//algorthm-based
+        puFracPt_all_.push_back(puFracPt);//algorithm-base
+        puFracCount_truth_all_.push_back(puFracCount_truth);//truth-based
+        puFracPt_truth_all_.push_back(puFracPt_truth);//truth-based
 
 /*
         // Save LEADING 5 jets
@@ -1685,36 +1840,36 @@ auto processFastJetCollection = [&](const std::vector<fastjet::PseudoJet>& jetsI
 };
 
 processJetCollection(*jets,  *genJets, 
-	jetIsHS_puppi_all_, jetPt_puppi_all_, jetAbsEta_puppi_all_, jetResponse_PR_puppi_all_,genPt_puppi_all_, puFracPt_puppi_all_, puFracCount_puppi_all_,jetDeltaR_puppi_all_,pf_indices_puppi_all_,
+	jetIsHS_puppi_all_, jetPt_puppi_all_, jetAbsEta_puppi_all_, jetResponse_PR_puppi_all_,genPt_puppi_all_, puFracPt_puppi_all_, puFracCount_puppi_all_, puFracPt_truth_puppi_all_, puFracCount_truth_puppi_all_,jetDeltaR_puppi_all_,pf_indices_puppi_all_,
 //	jetPt_puppi_5leading_, jetAbsEta_puppi_5leading_, jetResponse_PR_puppi_5leading_, genPt_puppi_5leading_, puFracPt_puppi_5leading_, puFracCount_puppi_5leading_,
 	totalRecoJets_puppi, totalPUJets_puppi, puJetFraction_puppi_all_,efficiency_puppi_, purity_puppi_);
 
 
 //const auto& pfrawJetsConst = pfrawJets;
 processFastJetCollection(pfrawJets,  *genJets, 
-	jetIsHS_pfraw_all_, jetPt_pfraw_all_, jetAbsEta_pfraw_all_, jetResponse_PR_pfraw_all_,genPt_pfraw_all_, puFracPt_pfraw_all_, puFracCount_pfraw_all_,jetDeltaR_pfraw_all_,pf_indices_pfraw_all_,
+	jetIsHS_pfraw_all_, jetPt_pfraw_all_, jetAbsEta_pfraw_all_, jetResponse_PR_pfraw_all_,genPt_pfraw_all_, puFracPt_pfraw_all_, puFracCount_pfraw_all_,puFracPt_truth_pfraw_all_, puFracCount_truth_pfraw_all_,jetDeltaR_pfraw_all_,pf_indices_pfraw_all_,
 //	jetPt_pfraw_5leading_, jetAbsEta_pfraw_5leading_, jetResponse_PR_pfraw_5leading_, genPt_pfraw_5leading_, puFracPt_pfraw_5leading_, puFracCount_pfraw_5leading_,
 	totalRecoJets_pfraw, totalPUJets_pfraw, puJetFraction_pfraw_all_,efficiency_pfraw_, purity_pfraw_);
 
 processFastJetCollection(fromPV3Jets,  *genJets, 
-	jetIsHS_fromPV3_all_, jetPt_fromPV3_all_, jetAbsEta_fromPV3_all_, jetResponse_PR_fromPV3_all_,genPt_fromPV3_all_, puFracPt_fromPV3_all_, puFracCount_fromPV3_all_,jetDeltaR_fromPV3_all_,pf_indices_fromPV3_all_,
+	jetIsHS_fromPV3_all_, jetPt_fromPV3_all_, jetAbsEta_fromPV3_all_, jetResponse_PR_fromPV3_all_,genPt_fromPV3_all_, puFracPt_fromPV3_all_, puFracCount_fromPV3_all_,puFracPt_truth_fromPV3_all_, puFracCount_truth_fromPV3_all_,jetDeltaR_fromPV3_all_,pf_indices_fromPV3_all_,
 //	jetPt_fromPV3_5leading_, jetAbsEta_fromPV3_5leading_, jetResponse_PR_fromPV3_5leading_, genPt_fromPV3_5leading_, puFracPt_fromPV3_5leading_, puFracCount_fromPV3_5leading_,
 	totalRecoJets_fromPV3, totalPUJets_fromPV3, puJetFraction_fromPV3_all_,efficiency_fromPV3_, purity_fromPV3_);
 
 processFastJetCollection(tightJets,  *genJets, 
-	jetIsHS_tight_all_,jetPt_tight_all_, jetAbsEta_tight_all_, jetResponse_PR_tight_all_,genPt_tight_all_, puFracPt_tight_all_, puFracCount_tight_all_,jetDeltaR_tight_all_,pf_indices_tight_all_,
+	jetIsHS_tight_all_,jetPt_tight_all_, jetAbsEta_tight_all_, jetResponse_PR_tight_all_,genPt_tight_all_, puFracPt_tight_all_, puFracCount_tight_all_,puFracPt_truth_tight_all_, puFracCount_truth_tight_all_,jetDeltaR_tight_all_,pf_indices_tight_all_,
 //	jetPt_tight_5leading_, jetAbsEta_tight_5leading_, jetResponse_PR_tight_5leading_, genPt_tight_5leading_, puFracPt_tight_5leading_, puFracCount_tight_5leading_,
 	totalRecoJets_tight, totalPUJets_tight, puJetFraction_tight_all_,efficiency_tight_, purity_tight_);
 
 
 processFastJetCollection(looseJets,  *genJets,
-	jetIsHS_loose_all_, jetPt_loose_all_, jetAbsEta_loose_all_, jetResponse_PR_loose_all_,genPt_loose_all_, puFracPt_loose_all_, puFracCount_loose_all_,jetDeltaR_loose_all_,pf_indices_loose_all_,
+	jetIsHS_loose_all_, jetPt_loose_all_, jetAbsEta_loose_all_, jetResponse_PR_loose_all_,genPt_loose_all_, puFracPt_loose_all_, puFracCount_loose_all_,puFracPt_truth_loose_all_, puFracCount_truth_loose_all_,jetDeltaR_loose_all_,pf_indices_loose_all_,
 //	jetPt_loose_5leading_, jetAbsEta_loose_5leading_, jetResponse_PR_loose_5leading_, genPt_loose_5leading_, puFracPt_loose_5leading_, puFracCount_loose_5leading_,
 	totalRecoJets_loose, totalPUJets_loose, puJetFraction_loose_all_,efficiency_loose_, purity_loose_);
 
 
 processFastJetCollection(timeJets,  *genJets, 
-	jetIsHS_time_all_, jetPt_time_all_, jetAbsEta_time_all_, jetResponse_PR_time_all_,genPt_time_all_, puFracPt_time_all_, puFracCount_time_all_, jetDeltaR_time_all_,pf_indices_time_all_,
+	jetIsHS_time_all_, jetPt_time_all_, jetAbsEta_time_all_, jetResponse_PR_time_all_,genPt_time_all_, puFracPt_time_all_, puFracCount_time_all_,puFracPt_truth_time_all_, puFracCount_truth_time_all_, jetDeltaR_time_all_,pf_indices_time_all_,
 //	jetPt_time_5leading_, jetAbsEta_time_5leading_, jetResponse_PR_time_5leading_, genPt_time_5leading_, puFracPt_time_5leading_, puFracCount_time_5leading_,
 	totalRecoJets_time, totalPUJets_time, puJetFraction_time_all_,efficiency_time_, purity_time_);
 

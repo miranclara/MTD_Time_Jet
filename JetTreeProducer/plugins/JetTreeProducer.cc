@@ -305,7 +305,9 @@ namespace {
 
   }//End of inline bool isChargedPU(const pat::PackedCandidate &pf)
 
-  inline bool isNeutralPU(const pat::PackedCandidate& pf, float pvTime, bool useTimingFallbackPuppi)
+  inline bool isNeutralPU(const pat::PackedCandidate& pf, 
+                          float pvTime, 
+                          bool useTimingFallbackPuppi)
   {
     if (pf.charge() != 0) return false;
 
@@ -344,11 +346,15 @@ struct PFTruthContentReco {
   float sumPtPU  = 0.f;
 };//End of PFTruthContentReco(FOR TRUTH).
 
-//1. Algorithmic PU update:REDUNDENT
-// Common helper: update PUContentReco given one PF candidate
+//=====================================================================
+//  Canonical helper functions for PU content (cleaned & consistent)
+//=====================================================================
+
+//1. Algorithmic PU-content accumulator (per-PF)
 inline void updatePUContentReco(const pat::PackedCandidate* pf,
                                 PUContentReco& acc,
                                 float pvTime,
+//                                const std::vector<float>& pvs_t_,
                                 bool useTimingFallbackPuppi)
 {
   if (!pf) {
@@ -366,7 +372,6 @@ inline void updatePUContentReco(const pat::PackedCandidate* pf,
   bool isPU = (pf->charge() != 0)
                 ? isChargedPU(*pf)
                 : isNeutralPU(*pf, pvTime, useTimingFallbackPuppi);
-
   if (isPU) {
     ++acc.nPU;
     acc.sumPtPU += pf->pt();
@@ -380,11 +385,11 @@ inline void updatePUContentReco(const pat::PackedCandidate* pf,
   }
 }//End of void updatePUContentReco
 
+// 2. Truth-based PU-content accumulator (per-PF), reusing cached truth flags.
 //=====================================================================
 //  Update PF Truth Content using precomputed truth flags
 //  (no matchToGen call — reuses pf_isPU_truth)
 //=====================================================================
-// 2. Truth PU update:REDUNDENT
 inline void updatePFTruthContentReco(const pat::PackedCandidate* pf,
                                      PFTruthContentReco& acc,
                                      unsigned int idx,
@@ -400,10 +405,28 @@ inline void updatePFTruthContentReco(const pat::PackedCandidate* pf,
   }
 }//End of updatePFTruthContentReco()
 
-
+//=====================================================================
+//  FastJet PU-content calculator (algorithmic only, no truth inside)
+//=====================================================================
+inline PUContentReco computePUContentFastJet(const fastjet::PseudoJet& jet,
+                                             const std::vector<const pat::PackedCandidate*>& pfAll,
+                                             float pvTime,
+                                             bool useTimingFallbackPuppi = true)
+{
+  PUContentReco acc;
+  for (const auto& c : jet.constituents()) {
+    if (c.user_index()<0) continue;
+    int idx = c.user_index();
+    if (idx < 0 || idx >= static_cast<int>(pfAll.size())) continue;
+    
+    const pat::PackedCandidate* pf = pfAll[idx];
+    updatePUContentReco(pf, acc, pvTime, useTimingFallbackPuppi);
+  }
+  return acc;
+}
 
 //Function: compute PU fractions for one jet
-PUContentReco computePUContentRecoJet(//A function that returns PUContentRec
+inline PUContentReco computePUContentRecoJet(//A function that returns PUContentRec
     const pat::Jet& jet,//the reco jet whose PF composition we are studying.
     const std::vector<const pat::PackedCandidate*>& /*pfAll*/,//the full PF candidate collection by index
     float pvTime,//the primary-vertex time, needed for neutral timing PU ID.
@@ -1284,6 +1307,7 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   PFTruthContentReco puContentTruth;
 
   float pvTime = 0.0f;                  // or your stored primary vertex time
+//float pvTime = pvs_t_;
   bool useTimingFallbackPuppi = true;   // set according to your config
 
 
@@ -1291,9 +1315,10 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   //---PF Particle Loop---
 
   int pf_coll_index = 0;
-  for (const auto& pf : pf_coll) {
+  for (size_t iPF = 0; iPF < pf_coll.size(); ++iPF) {
+//  for (const auto& pf : pf_coll) {
 //  for (size_t i = 0; i < pf_coll.size(); ++i)
-//    const auto& pf = pf_coll[i];
+    const auto& pf = pf_coll[iPF];
     pf_for_allCollections.push_back(&pf);
     pf_pt.push_back(pf.pt());
     pf_eta.push_back(pf.eta());
@@ -1311,9 +1336,11 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
    
     //==========PF HS/PU check====================
     // inside pf loop, for each const pat::PackedCandidate& pf:
+//    float pvTime = pvs_t_.empty() ? 0.f : pvs_t_[0];
+    float pvTime = pvs_t_;  
     bool isPU_algo = (pf.charge() != 0)
                     ? isChargedPU(pf)
-                    : isNeutralPU(pf, pvs_t_, /*useTimingFallbackPuppi=*/true);
+                    : isNeutralPU(pf, pvTime, /*useTimingFallbackPuppi=*/true);
    // store algorithmic labels
     pf_isPU_algo.push_back(isPU_algo ? 1 : 0);
     pf_isHS_algo.push_back(isPU_algo ? 0 : 1);
@@ -1353,18 +1380,10 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
 
     // Common PseudoJet for dz-based clustering
     fastjet::PseudoJet pj(pf.px(), pf.py(), pf.pz(), pf.energy());
-    int pf_coll_index = &pf - &pf_coll[0]; // index relative to pf_coll
-    pj.set_user_index(pf_coll_index);// link PF index    
+//    int pf_coll_index = &pf - &pf_coll[0]; // index relative to pf_coll
+//    pj.set_user_index(pf_coll_index);// link PF index    
+    pj.set_user_index(static_cast<int>(iPF)); // simpler and safe    
     fjInputs_raw.push_back(pj);//All PFS, no cut (for control)
-
-    // For algorithmic classification (you already have)
-//    updatePUContentReco(&pf, puContentAlgo, pvs_t_, useTimingFallbackPuppi);
-    updatePUContentReco(&pf, puContentAlgo, pvTime, useTimingFallbackPuppi);
-
-    // For truth classification
-    updatePFTruthContentReco(&pf, puContentTruth, static_cast<unsigned int>(pf_coll_index), pf_isPU_truth);
-//    updatePFTruthContentReco(&pf, puContentTruth, iPF, pf_isPU_truth);
-//    updatePFTruthContentReco(pf, puContentTruth, *genp);
 
 
     if (pf.hasTrackDetails() && isCharged) {//For charged particle
@@ -1650,12 +1669,15 @@ auto processJetCollection = [&](const std::vector<pat::Jet>& jetsIn,
 	PUContentReco algoAcc;
 	PFTruthContentReco truthAcc;
 
+//	auto pfIndices = getPFIndicesFromPatJet(jet,pf_for_allCollections);
 	auto pfIndices = getPFIndicesFromPatJet(jet);
 	for (unsigned int idx : pfIndices) {
   	if (idx >= pf_for_allCollections.size()) continue;
   	const pat::PackedCandidate* pf = pf_for_allCollections[idx];
 
   	// algorithmic classification
+//  	float pvTime = pvs_t_.empty() ? 0.f : pvs_t_[0];
+        float pvTime = pvs_t_;  	
   	updatePUContentReco(pf, algoAcc, pvTime, useTimingFallbackPuppi);
 
   	// truth classification (reuse cached pf_isPU_truth)
@@ -1792,7 +1814,12 @@ auto processFastJetCollection = [&](const std::vector<fastjet::PseudoJet>& jetsI
   	if (idx >= pf_for_allCollections.size()) continue;
  	 const pat::PackedCandidate* pf = pf_for_allCollections[idx];
 
-  	updatePUContentReco(pf, algoAcc, pvTime, useTimingFallbackPuppi);
+         // algorithmic classification
+//        float pvTime = pvs_t_.empty() ? 0.f : pvs_t_[0];
+        float pvTime = pvs_t_;
+  	updatePUContentReco(pf, algoAcc, pvs_t_, useTimingFallbackPuppi);
+        
+        // truth update using cached per-PF truth flags
   	updatePFTruthContentReco(pf, truthAcc, idx, pf_isPU_truth);
 	}
 
@@ -1959,16 +1986,29 @@ tree_->Fill();
       edm::LogWarning("JetTreeProducer") << "pf_coll[i].pt() = " << pf_coll[i].pt();
     }
   }//End of for (size_t i = 0; i < pf_for_allCollections.size()
+  std::vector<int> jetIsHS_puppi_all_;
+  std::vector<float> jetPt_puppi_all_;
+  std::vector<float> jetAbsEta_puppi_all_;
+  std::vector<float> jetResponse_PR_puppi_all_;
+  std::vector<float> genPt_puppi_all_;
+  std::vector<float> puFracPt_algo_puppi_all_;
+  std::vector<float> puFracCount_algo_puppi_all_;
+  std::vector<float> puFracPt_truth_puppi_all_;
+  std::vector<float> puFracCount_truth_puppi_all_;
 
-  if (!jetPt_.empty()) {
+
+
+
+
+  if (!jetPt_puppi_all_.empty()) {
       double sumHS = 0, sumPU = 0;
       int nHS = 0, nPU = 0;
-      for (size_t i = 0; i < jetIsHS_all_.size(); ++i) {
-          if (jetIsHS_all_[i]) {
-              sumHS += jet_puFracPt_truth_[i];
+      for (size_t i = 0; i < jetIsHS_puppi_all_.size(); ++i) {
+          if (jetIsHS_puppi_all_[i]) {
+              sumHS += puFracPt_truth_puppi_all_[i];
               ++nHS;
           } else {
-              sumPU += jet_puFracPt_truth_[i];
+              sumPU += puFracPt_truth_puppi_all_[i];
               ++nPU;
           }
       }

@@ -25,6 +25,8 @@
 #include "DataFormats/PatCandidates/interface/PackedCandidate.h"
 #include "DataFormats/ParticleFlowCandidate/interface/PFCandidate.h"
 #include "DataFormats/PatCandidates/interface/PackedGenParticle.h"
+#include "SimDataFormats/GeneratorProducts/interface/GenEventInfoProduct.h"
+#include "DataFormats/HepMCCandidate/interface/GenParticle.h"
 
 #include "TTree.h"
 #include "TFile.h"
@@ -44,6 +46,9 @@ struct PrimaryVertex {
     int nTracks;
 };
 
+//Test of genvertex
+//Test of genvertex
+
 //GenJet matching + jet classification (ΔR + pT cut, clean HS/PU)
 namespace {
 
@@ -59,24 +64,36 @@ inline std::vector<unsigned int> getPFIndicesFromPatJet(const pat::Jet& jet) {
     pf_indices_this_jet.reserve(jet.numberOfDaughters());
 
     for (const auto& candPtr : jet.getJetConstituents()) {
-        // Try casting to PackedCandidate
+
+        // Basic nullptr / availability checks on edm::Ptr:
+        // - skip null pointers (no reference stored)
+        // - skip pointers whose product is not available in this event (avoids ProductNotFound)
+        if (candPtr.isNull()) continue;
+        // isAvailable() tells if the product backing the Ptr exists in this event
+        if (!candPtr.isAvailable()) {
+            edm::LogWarning("getPFIndicesFromPatJet")
+                << "Jet constituent Ptr refers to a product not available in this event (ProductID invalid); skipping.";
+            continue;
+        }
+
+        // Now safe to call candPtr.get()
         const auto* pfcand = dynamic_cast<const pat::PackedCandidate*>(candPtr.get());
         if (!pfcand) continue;
 
         // Use key() as PF index (aligned with event-level PF collection)
         unsigned int pfIdx = candPtr.key();
         pf_indices_this_jet.push_back(pfIdx);
-
-        // If you have a custom userInt index stored earlier:
-        // unsigned int pfIdx = pfcand->userInt("pfIdx");
     }
 
     return pf_indices_this_jet;
 }
 
+
 // ======================================================
-// Helper 00: Extract PF indices from fastjet::PseudoJet
+// Helper 0-0: Extract PF indices from fastjet::PseudoJet
 // ======================================================
+
+//Old Version
 inline std::vector<unsigned int> getPFIndicesFromPseudoJet(
     const fastjet::PseudoJet& jet,
     const std::vector<const pat::PackedCandidate*>& pfAll)
@@ -96,7 +113,7 @@ inline std::vector<unsigned int> getPFIndicesFromPseudoJet(
         out.push_back(static_cast<unsigned int>(idx));
     }
     return out;
-}//End of getPFIndicesFromPseudoJet()
+}//Old Version:End of getPFIndicesFromPseudoJet()
 
 //---Helper Function1:  PF candidate  ↔   GenParticle matching---
 // --- Updated PF candidate ↔ GenParticle matching ---
@@ -111,6 +128,7 @@ const pat::PackedGenParticle* matchToGen(const pat::PackedCandidate& pf,
   for (const auto& gen : genParticles) {
     // --- Physics requirement: must be HS / from PV ---
     if (!(gen.fromHardProcessFinalState() || gen.isPromptFinalState())) continue;
+//    if (!(gen.isHardProcess())) continue;//AOD,reco::GenParticle only
 
     // --- (Optional) require same particle type ---
     if (std::abs(pf.pdgId()) != std::abs(gen.pdgId())) continue;
@@ -125,8 +143,6 @@ const pat::PackedGenParticle* matchToGen(const pat::PackedCandidate& pf,
 
   return bestMatch;  // nullptr if no good match
 }
-
-
 
 // --- Helper Function3: Jet ↔ GenJet Jetresponse calcultation---
 inline float computeResponse(const pat::Jet& recoJet,
@@ -154,6 +170,15 @@ inline float computeResponse(const fastjet::PseudoJet& fjJet,
              double* outDR = nullptr,
              int* outIdx = nullptr)  
  {
+  // ✅ ADDED SAFEGUARDS inside bestGenMatch
+  if (gens.empty()) {
+    edm::LogWarning("JetTreeProducer")
+      << "⚠️ bestGenMatch called with empty genJet collection.";
+    if (outDR)  *outDR = -1.0;
+    if (outIdx) *outIdx = -1;
+    return nullptr;
+  }//End of ✅ ADDED SAFEGUARDS inside bestGenMatch
+
     const reco::GenJet* best = nullptr;
     double bestDR = 1e9;
     int bestIdx = -1;
@@ -166,7 +191,29 @@ inline float computeResponse(const fastjet::PseudoJet& fjJet,
       if (g.pt() <= minGenPt) continue;//Skip too-soft ones (g.pt() <= minGenPt).
   
        // Require gen jet to come from generator PV
-      if (std::abs(g.vz() - genvertex_z) > maxDz) continue;
+//      if (std::abs(g.vz() - genvertex_z) > maxDz) continue;
+          
+       // ---TEST: more robust dz filter ---//
+    double vzGen = 0.0;
+    bool hasVz = (std::abs(g.vz()) > 1e-3);
+    
+    if (!g.getJetConstituents().empty()){
+      const auto& firstPtr = g.getJetConstituents().at(0);
+      if (firstPtr.isNull()) {
+          edm::LogWarning("JetTreeProducer")
+              << "GenJet first constituent Ptr is null; cannot read vz. Using default.";
+      } else if (!firstPtr.isAvailable()) {
+          edm::LogWarning("JetTreeProducer")
+              << "GenJet first constituent Ptr product not available; cannot read vz. Using default.";
+      } else {
+          vzGen = firstPtr->vz();
+      }
+    }    
+    else
+        vzGen = g.vz();
+    if (hasVz && maxDz < 900.0 && std::abs(vzGen - genvertex_z) > maxDz)
+        continue;      
+       //---TEST:For GenJet verification---//       
 
       const double dR = reco::deltaR(eta, phi, g.eta(), g.phi());//Compute ΔR
       if (dR < dRMax && dR < bestDR) {//Keep the closest match within dRMax.
@@ -234,12 +281,24 @@ inline float computeResponse(const fastjet::PseudoJet& fjJet,
                 double genvertex_z_)    //generator PV z position
 
   {
+ // ✅ ADDED SAFEGUARDS inside classifyJetHS
+   JetTruthMatch out;//It builds a JetTruthMatch out strut
+  if (gens.empty()) {
+    edm::LogWarning("JetTreeProducer") 
+      << "⚠️ classifyJetHS called with empty genJet vector.";
+    out.isHS = false;
+    out.dR = -1.0;
+    out.genPt = -1.0f;
+    out.genIndex = -1;
+    out.matchedGen = nullptr;
+    return out;
+  }//End of Test safe
+
     double dR = -1.0;
     int idx = -1;
 
     const reco::GenJet* g = bestGenMatch(j, gens, dRMax, minGenPt, maxDz, genvertex_z_, &dR, &idx);
 //    const reco::GenJet* g = bestGenMatch(j, gens, dRMax, minGenPt, &dR, &idx);//It calls bestGenMatch(), gets the pointer,ΔR,and index.
-    JetTruthMatch out;//It builds a JetTruthMatch out strut
     out.isHS     = (g != nullptr);//only true if match exists AND passed PV cut
     out.dR       = static_cast<float>(dR);//best ΔR or -1.
     out.genPt    = (g ? g->pt() : -1.0f);//if valid, else -1.
@@ -446,7 +505,13 @@ inline PUContentReco computePUContentRecoJet(//A function that returns PUContent
     const pat::PackedCandidate* pf = nullptr;
       if (c.numberOfSourceCandidatePtrs() > 0) {
         auto ptr = c.sourceCandidatePtr(0);
-        pf = dynamic_cast<const pat::PackedCandidate*>(ptr.get());
+        if (ptr.isNull()) {
+        edm::LogWarning("JetTreeProducer") << "Found null Ptr at pf-pointer extraction; skipping.";
+    } else if (!ptr.isAvailable()) {
+        edm::LogWarning("JetTreeProducer") << "Found Ptr whose product is not available; skipping.";
+    } else {
+          pf = dynamic_cast<const pat::PackedCandidate*>(ptr.get());
+          }
       }//If no index is available, try to backtrack to the PF candidate pointer.
 
       if (pf) {
@@ -480,22 +545,27 @@ public:
   
   
 private:
+  std::pair<double, std::string> getGenVertexZ(const edm::Event& iEvent);
   void beginJob() override;
   void analyze(const edm::Event&, const edm::EventSetup&) override;
   void endJob() override;
   
+  // --- jet and genjet ---
   edm::EDGetTokenT<std::vector<pat::Jet>> jetsToken_;
   edm::EDGetTokenT<std::vector<reco::GenJet>> genJetToken_;
 
-  // Add tokens for packedCandidate, primary vertex, beam spot, and generateid particles
-  edm::EDGetTokenT<std::vector<pat::PackedCandidate>> pf_collection_token;
-  edm::EDGetTokenT<std::vector<reco::Vertex>> pvsToken_;
-  edm::EDGetTokenT<reco::BeamSpot> bsToken_;
-  //edm::EDGetTokenT<math::XYZPointF> genpToken_;
-//  edm::EDGetTokenT<std::vector<reco::GenParticle>> genParticlesToken_;//AODSIM
-  edm::EDGetTokenT<std::vector<pat::PackedGenParticle>> genParticlesToken_;
-  edm::EDGetTokenT<edm::HepMCProduct> genvertexToken_;
-  
+// --- PF candidates and primary vertex ---
+edm::EDGetTokenT<std::vector<pat::PackedCandidate>> pf_collection_token;
+edm::EDGetTokenT<std::vector<reco::Vertex>> pvsToken_;
+edm::EDGetTokenT<reco::BeamSpot> bsToken_;
+
+// --- generator-level info (multi-source robust setup) ---
+edm::EDGetTokenT<std::vector<reco::GenParticle>> genParticlesTokenAOD_;          // prunedGenParticles (AOD)
+edm::EDGetTokenT<std::vector<pat::PackedGenParticle>> genParticlesTokenMiniAOD_; // packedGenParticles (MiniAOD)
+edm::EDGetTokenT<edm::HepMCProduct> genvertexToken_;                             // generatorSmeared
+edm::EDGetTokenT<GenEventInfoProduct> genEventInfoToken_;                        // generator metadata
+
+
   TTree* tree_;
 
 // For jet-level matching diagnostics
@@ -743,10 +813,15 @@ JetTreeProducer::JetTreeProducer(const edm::ParameterSet& iConfig)//:
   pvsToken_ = consumes<std::vector<reco::Vertex>>(iConfig.getParameter<edm::InputTag>("pvTag"));
   bsToken_ = consumes<reco::BeamSpot>(edm::InputTag("offlineBeamSpot"));
 //  genpToken_ = consumes<math::XYZPointF>(iConfig.getParameter<edm::InputTag>("genParticlesTag"));
-  genParticlesToken_ = consumes<std::vector<pat::PackedGenParticle>>(iConfig.getParameter<edm::InputTag>("genParticlesTag"));
-  genvertexToken_ = consumes<edm::HepMCProduct>(edm::InputTag("generatorSmeared"));
 
-}
+// --- multi-source genvertex---
+genParticlesTokenAOD_     = consumes<std::vector<reco::GenParticle>>(edm::InputTag("prunedGenParticles"));
+genParticlesTokenMiniAOD_ = consumes<std::vector<pat::PackedGenParticle>>(edm::InputTag("packedGenParticles"));
+genvertexToken_           = consumes<edm::HepMCProduct>(edm::InputTag("generatorSmeared"));
+genEventInfoToken_        = consumes<GenEventInfoProduct>(edm::InputTag("generator"));
+
+
+}//End of JetTreeProducer::JetTreeProducer(const edm::ParameterSet& iConfig)
 
 void JetTreeProducer::beginJob() {
   usesResource("TFileService");
@@ -1013,13 +1088,12 @@ void JetTreeProducer::beginJob() {
   tree_->Branch("efficiency_time", &efficiency_time_,"efficiency_time/F");
   tree_->Branch("purity_time", &purity_time_,"purity_time/F");
 
-  tree_->Branch("pf_indices_pfraw", &pf_indices_general_all_);
   tree_->Branch("pf_indices_puppi_all", &pf_indices_puppi_all_);
   tree_->Branch("pf_indices_pfraw_all", &pf_indices_pfraw_all_);
   tree_->Branch("pf_indices_fromPV3_all", &pf_indices_fromPV3_all_);
-  tree_->Branch("pf_indices_tight", &pf_indices_tight_all_);
-  tree_->Branch("pf_indices_loose", &pf_indices_loose_all_);
-  tree_->Branch("pf_indices_MTD", &pf_indices_time_all_);
+  tree_->Branch("pf_indices_tight_all", &pf_indices_tight_all_);
+  tree_->Branch("pf_indices_loose_all", &pf_indices_loose_all_);
+  tree_->Branch("pf_indices_time_all", &pf_indices_time_all_);
   
   tree_->Branch("puFrac_pfraw", &puFrac_fromPV3_);
   tree_->Branch("puFrac_pfraw", &puFrac_pfraw_);
@@ -1035,6 +1109,50 @@ void JetTreeProducer::beginJob() {
 
 }//End of void JetTreeProducer::beginJob()
 
+//Test of genvertex
+// --- robust, member implementation ---
+std::pair<double, std::string> JetTreeProducer::getGenVertexZ(const edm::Event& iEvent) {
+    double genvertex_z_ = 0.0;
+    std::string source = "fallback_zero";
+
+    // 1. Try HepMCProduct (FullSIM case)
+    edm::Handle<edm::HepMCProduct> hepmcH;
+    if (iEvent.getByToken(genvertexToken_, hepmcH) && hepmcH.isValid()) {
+        const HepMC::GenEvent* evt = hepmcH->GetEvent();
+        if (evt && evt->signal_process_vertex()) {
+            genvertex_z_ = evt->signal_process_vertex()->point3d().z();
+            source = "HepMCProduct";
+            return {genvertex_z_, source};
+        }
+    }
+
+    // 2. Try GenEventInfoProduct (exists but no vertex info)
+    edm::Handle<GenEventInfoProduct> genEvtInfoH;
+    if (iEvent.getByToken(genEventInfoToken_, genEvtInfoH) && genEvtInfoH.isValid()) {
+        edm::LogInfo("JetTreeProducer") << "GenEventInfoProduct is valid (no vertex info available)";
+    }
+
+    // 3. Try reco::GenParticle (AODSIM case)
+    edm::Handle<std::vector<reco::GenParticle>> genParticlesAOD;
+    if (iEvent.getByToken(genParticlesTokenAOD_, genParticlesAOD) && genParticlesAOD.isValid() && !genParticlesAOD->empty()) {
+        genvertex_z_ = genParticlesAOD->at(0).vz();
+        source = "GenParticle";
+        return {genvertex_z_, source};
+    }
+
+    // 4. Try pat::PackedGenParticle (MiniAOD case)
+    edm::Handle<std::vector<pat::PackedGenParticle>> genParticlesMini;
+    if (iEvent.getByToken(genParticlesTokenMiniAOD_, genParticlesMini) && genParticlesMini.isValid() && !genParticlesMini->empty()) {
+        genvertex_z_ = genParticlesMini->at(0).vz();
+        source = "PackedGenParticle";
+        return {genvertex_z_, source};
+    }
+
+    // 5. If all fail, fallback to zero
+    edm::LogWarning("JetTreeProducer") << "No valid generator vertex found. Falling back to z=0.";
+    return {genvertex_z_, source};
+}
+//Tes of gen vetex
 
 void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) {
 //  pfparticles.clear();
@@ -1220,7 +1338,6 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   puFracCount_time_5leading_.clear();
 */
 
- 
   int N_HS_total = 0;
 //  int N_selected = 0;
   int N_selected_fromPV3 = 0;
@@ -1234,30 +1351,62 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
 // Retrieve jet collection
   edm::Handle<std::vector<pat::Jet>> jets;
   iEvent.getByToken(jetsToken_, jets);
-  // Retrieve Genjet collection
-  edm::Handle<std::vector<reco::GenJet>> genJets;
-  iEvent.getByToken(genJetToken_, genJets);
+  if (!jets.isValid()) {
+    edm::LogError("JetTreeProducer") << "Missing input: jetsToken. Skipping event.";
+    return;
+  }
+  const auto& jetsColl = *jets;
 
-  // Retrieve primary vertex collection
+
+  // Retrieve Genjet collection
+  edm::Handle<std::vector<reco::GenJet>> genJetsHandle;
+  iEvent.getByToken(genJetToken_,genJetsHandle);
+  if (!genJetsHandle.isValid()) {
+    edm::LogError("JetTreeProducer") << "Missing input: genJetsToken";
+  }
+
+
+// -------------------------
+// ✅ ADDED SAFEGUARDS: genJets validity check
+// -------------------------
+if (!genJetsHandle.isValid()) {
+  edm::LogWarning("JetTreeProducer") 
+    << "⚠️ genJetsHandle not found in event. Skipping event " 
+    << iEvent.id().event() << ".";
+  return;  // stop processing this event
+}
+
+if (genJetsHandle->empty()) {
+  edm::LogWarning("JetTreeProducer")
+    << "⚠️ genJetsHandle is empty in event " 
+    << iEvent.id().event() << ". Skipping event.";
+  return;
+}//End of  ✅ ADDED SAFEGUARDS: genJets validity check
+
+// --- Create a reference to the vector ---
+const auto& genJets = *genJetsHandle;// ✅ This gives you const std::vector<reco::GenJet>&  
+  
+
+// Retrieve primary vertex collection
   std::vector<reco::Vertex> reco_pvs;
   edm::Handle<std::vector<reco::Vertex>> pv_handle;
   iEvent.getByToken(pvsToken_, pv_handle); 
   if (pv_handle.isValid()) {
     reco_pvs = *pv_handle;//reco_pvs is a direct copy of all the primary vertices in this event
   }
+ if (!pv_handle.isValid()) {
+    edm::LogError("JetTreeProducer") << "Missing input: reco vertex";
+  }
 
   // Retrieve gen vertex
-  edm::Handle<edm::HepMCProduct> genvertex;
-  iEvent.getByToken(genvertexToken_, genvertex);
-  bool hasGenZ = false;
-  if (genvertex.isValid()) {
-    const HepMC::GenEvent* evt = genvertex->GetEvent();
-    if (evt && evt->vertices_size() > 0) {
-      const HepMC::GenVertex* firstVertex = *(evt->vertices_begin());
-      genvertex_z_ = firstVertex->position().z(); //the z-position of the hard-scatter interaction point in generator truth. position() returns a 4-vector (x, y, z, t)
-      hasGenZ = true;
-    }
-  }
+  edm::Handle<GenEventInfoProduct> genEventInfoHandle;
+//  edm::Handle<edm::HepMCProduct> genvertex;//Original Handel
+
+auto [genvertex_z_val, genvertex_source] = getGenVertexZ(iEvent);
+genvertex_z_ = genvertex_z_val;        // <-- important
+edm::LogInfo("JetTreeProducer") << "Generator vertex source: " << genvertex_source 
+                                << ", z = " << genvertex_z_;
+bool hasGenZ = (genvertex_source != "fallback_zero");
 
   // â Early event rejection if gen vertex is valid and reco_pvs(primary vertices) is not empty
   // =Only accept the event if the first reco PV is literally the one closest to the gen vertex.
@@ -1283,15 +1432,44 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   // Retrieve PackedCandidates
   edm::Handle<std::vector<pat::PackedCandidate>> pfColl_handle;
   iEvent.getByToken(pf_collection_token, pfColl_handle);
-  const auto& pf_coll = *(pfColl_handle.product());
+  if (!pfColl_handle.isValid()) {
+    edm::LogError("JetTreeProducer") << "Missing input: PackedCandidate collection (pf_collection_source). Skipping event.";
+    return;
+  }
+  const auto& pf_coll = *pfColl_handle; // safe dereference only after isValid()
+
 
   // Retrieve beam spot
   edm::Handle<reco::BeamSpot> beamspot;
   iEvent.getByToken(bsToken_, beamspot);
+  if (!beamspot.isValid()) {
+    edm::LogWarning("JetTreeProducer") << "BeamSpot not found in event; beamspot_* will be set to 0.";
+    beamspot_x_ = beamspot_y_ = beamspot_z_ = 0.0f;
+  } else {
+    beamspot_x_ = beamspot->x0();
+    beamspot_y_ = beamspot->y0();
+    beamspot_z_ = beamspot->z0();
+  }
 
   // Retrieve gen particles (optional)
-  edm::Handle<std::vector<pat::PackedGenParticle>> genp;
-  iEvent.getByToken(genParticlesToken_, genp);
+//  edm::Handle<std::vector<pat::PackedGenParticle>> genp;
+//  iEvent.getByToken(genParticlesToken_, genp);
+  // Retrieve packed genparticles (MiniAOD) safely
+  //New Test
+  // Retrieve packed genparticles (MiniAOD) safely
+  edm::Handle<std::vector<pat::PackedGenParticle>> genpHandle;
+  iEvent.getByToken(genParticlesTokenMiniAOD_, genpHandle);
+
+  // Provide a safe reference (fallback to empty container if not present)
+  static const std::vector<pat::PackedGenParticle> emptyGen; // static avoids realloc each event
+  const std::vector<pat::PackedGenParticle>& genpVec =
+      (genpHandle.isValid() ? *genpHandle : emptyGen);
+
+  if (!genpHandle.isValid()) {
+    edm::LogWarning("JetTreeProducer")
+        << "PackedGenParticle collection not found in event; truth matching will be skipped for this event.";
+  }//New Test
+  
 
   // Fill PackedCandidates
   std::vector<fastjet::PseudoJet> fjInputs_raw;
@@ -1303,6 +1481,14 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   std::vector<const pat::PackedCandidate*> pf_for_allCollections;
   pf_for_allCollections.reserve(pf_coll.size());
  
+  
+  fjInputs_raw.clear();
+  fjInputs_fromPV3.clear();
+  fjInputs_tight.clear();
+  fjInputs_loose.clear();
+  fjInputs_time.clear();
+
+
   PUContentReco puContentAlgo;
   PFTruthContentReco puContentTruth;
 
@@ -1310,12 +1496,20 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
 //float pvTime = pvs_t_;
   bool useTimingFallbackPuppi = true;   // set according to your config
 
+  //Define the global PF vector
+  std::vector<const pat::PackedCandidate*> pf_all;
+  pf_all.reserve(pf_coll.size());
+  for (const auto& pf : pf_coll) {
+    pf_all.push_back(&pf);
+  }
 
  
   //---PF Particle Loop---
 
+
   int pf_coll_index = 0;
   for (size_t iPF = 0; iPF < pf_coll.size(); ++iPF) {
+
 //  for (const auto& pf : pf_coll) {
 //  for (size_t i = 0; i < pf_coll.size(); ++i)
     const auto& pf = pf_coll[iPF];
@@ -1350,7 +1544,15 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
     // PV-consistency check is already enforced inside matchToGen,
     // so no extra vz cut is needed here.
     bool isHS_truth = false;
-    const pat::PackedGenParticle* genMatch = matchToGen(pf, *genp);
+//    const pat::PackedGenParticle* genMatch = matchToGen(pf, *genp);//old dereferenc issue
+
+      //New Test         
+      // Safe truth-match: only attempt if gen collection is present (genpVec non-empty)
+      const pat::PackedGenParticle* genMatch = nullptr;
+      if (!genpVec.empty()) {
+        genMatch = matchToGen(pf, genpVec); // pass the vector reference directly
+      }//New Test
+
     if (genMatch) {
 //     if (std::abs(genMatch->vz() - genvertex_z_) < 0.2)//reduent
     isHS_truth = true;
@@ -1382,9 +1584,8 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
     fastjet::PseudoJet pj(pf.px(), pf.py(), pf.pz(), pf.energy());
 //    int pf_coll_index = &pf - &pf_coll[0]; // index relative to pf_coll
 //    pj.set_user_index(pf_coll_index);// link PF index    
-    pj.set_user_index(static_cast<int>(iPF)); // simpler and safe    
-    fjInputs_raw.push_back(pj);//All PFS, no cut (for control)
-
+    pj.set_user_index(static_cast<int>(iPF)); // simpler and safe   
+    fjInputs_raw.push_back(pj);//keep global-indexed PF for raw jets
 
     if (pf.hasTrackDetails() && isCharged) {//For charged particle
        ++N_charged;
@@ -1472,6 +1673,7 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
 //      if (keepAlways&&hasValidTime && (std::abs(dtSig) < dtSigCut)) {//To save track has large dz,4D selection
         fjInputs_fromPV3.push_back(pj);
         ++N_selected_fromPV3;
+        
        // if (isHS) ++N_selected_HS_tight;
       }
       if (passesTightCut) {
@@ -1490,9 +1692,14 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
 //      if (pf.isTimeValid() && pf.timeError() < 0.05) {//pat::PackedCandidate does not have a method called .isTimeValid()
 //      if (hasValidTime) {
       if (hasTimeCompatibleWithPV) {
-      
-        fastjet::PseudoJet pj_time(pf.px(), pf.py(), pf.pz(), pf.energy());
-        pj_time.set_user_index(pf_for_time.size());//index back to PackedCandidate
+
+      // create a local copy if it need separate UserInfo, but keep the same index
+//        pj_time.set_user_index(pf_for_time.size());//local index bug
+//        pj_time.set_user_index(static_cast<int>(iPF));//index back to PackedCandidate
+//        fastjet::PseudoJet pj_time(pf.px(), pf.py(), pf.pz(), pf.energy());
+
+        // Reuse the same PseudoJet (already has global user_index)
+        fastjet::PseudoJet pj_time = pj; // copy keeps iPF index
         fjInputs_time.push_back(pj_time);
         pf_for_time.push_back(&pf);
       }
@@ -1507,6 +1714,7 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
       pf_dt.push_back(1e6);
       pf_dtErr.push_back(1e6);
       pf_dtSig.push_back(1e6);
+
       fjInputs_fromPV3.push_back(pj);
       fjInputs_tight.push_back(pj);
       fjInputs_loose.push_back(pj);
@@ -1520,6 +1728,7 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
     //outside the MTD geometry &seem to have time info:Indicate a reconstruction or simulation artifact.
     ++pf_coll_index;
   }//End of for (const auto& pf : pf_coll)
+
 
 /*
 float efficiency_tight = (N_HS_total > 0) ? float(N_selected_HS_tight) / N_HS_total : 0;
@@ -1541,6 +1750,7 @@ edm::LogVerbatim("JetTreeProducer")
   purity_loose_ = purity_loose;
 */
 
+
 // Run the jet clustering algorithm on each collection
   fastjet::JetDefinition jetDef(fastjet::antikt_algorithm, 0.4);
   auto cs_raw = fastjet::ClusterSequence(fjInputs_raw, jetDef);
@@ -1557,6 +1767,30 @@ edm::LogVerbatim("JetTreeProducer")
 
   auto cs_time = fastjet::ClusterSequence(fjInputs_time, jetDef);
   auto timeJets = fastjet::sorted_by_pt(cs_time.inclusive_jets(10.0));
+
+
+  // diagnostic: check user_index min/max for each fjInputs_* before clustering
+  auto diag_index_range = [](const std::vector<fastjet::PseudoJet>& v, const char* name){
+    if(v.empty()){
+      edm::LogInfo("JetTreeProducer") << name << " empty";
+      return;
+    }
+    int minI = INT_MAX, maxI = INT_MIN;
+    for (const auto &pj : v) {
+      int u = pj.user_index();
+      minI = std::min(minI, u);
+      maxI = std::max(maxI, u);
+    }  
+    edm::LogInfo("JetTreeProducer") << name << " count=" << v.size()
+                                 << " user_index range = [" << minI << "," << maxI << "]";
+  };
+
+  diag_index_range(fjInputs_raw, "fjInputs_raw");
+  diag_index_range(fjInputs_fromPV3, "fjInputs_fromPV3");
+  diag_index_range(fjInputs_tight, "fjInputs_tight");
+  diag_index_range(fjInputs_loose, "fjInputs_loose");
+  diag_index_range(fjInputs_time, "fjInputs_time");
+
 
 //Jet-level MTD time: PU jet rejection studies using MTD timing at the jet level.
 //Computes per-jet timing observables using the MTD (Minimum Timing Detector) information stored in the PF candidates
@@ -1626,11 +1860,13 @@ auto processJetCollection = [&](const std::vector<pat::Jet>& jetsIn,
     totalRecoJets = 0;
     totalPUJets   = 0;
     int nMatchedReco = 0;
+    int nMatchedR = 0;
 
     // Compute nGenJetsHS with the same minGenPt useed above
     int nGenJetsHS = 0; // apply pt>10 cut here
     for (const auto& g : genJets) {
       if (g.pt() > 10.0) nGenJetsHS++;
+
     }
 
     for (const auto& jet : jetsIn) {
@@ -1641,18 +1877,18 @@ auto processJetCollection = [&](const std::vector<pat::Jet>& jetsIn,
          pf_indices_general_all_.push_back(pf_indices_this_jet);
 
         // Jet ↔ GenJet matching/ classificaiton
-        auto truthMatch = classifyJetHS(jet, genJets,
-                                0.3,        // dRMax
-                                10.0,       // minGenPt
-                                0.3,        // maxDz (loose PV cut)
+        auto  truthMatch = classifyJetHS(jet, genJets,
+                                0.3,        // dRMax, 0.3
+                                10.0,       // minGenPt 10
+                                0.3,        // maxDz (loose PV cut)0.3
                                 genvertex_z_);  // generator PV
 
          const reco::GenJet* matchedGenJet = truthMatch.matchedGen;          
            
-[[maybe_unused]]           float minDR = truthMatch.dR; // example: distance saved in the struct
+           float minDR = truthMatch.dR; // example: distance saved in the struct
            bool isHSjet = truthMatch.isHS;
            bool isPUjet = !isHSjet;//jetIsHS_all_
-        if (matchedGenJet) nMatchedReco++;
+        if (matchedGenJet) nMatchedR++;
      
         // --- NEW: store ΔR to matched gen jet
         jetDeltaR_all_.push_back(truthMatch.dR);  // use the correct vector per collection
@@ -1725,7 +1961,7 @@ auto processJetCollection = [&](const std::vector<pat::Jet>& jetsIn,
    
     //Jet efficiency/purity: Count HS vs PU jets explicitly 
     //efficiency = fraction of gen jets reconstructed.
-    //purity = fraction of reco jets that are HS.    
+    //purity = fraction of  jetIsHS_all_.push_back(truthMatch.isHS ? 1 : 0);reco jets that are HS.    
     const int nRecoJetsHS = totalRecoJets - totalPUJets;
     efficiency_out = (nGenJetsHS > 0)     ? float(nRecoJetsHS)/nGenJetsHS : -1.0f;
     purity_out     = (totalRecoJets > 0)   ? float(nRecoJetsHS)/totalRecoJets : -1.0f;
@@ -1788,7 +2024,7 @@ auto processFastJetCollection = [&](const std::vector<fastjet::PseudoJet>& jetsI
                                 genvertex_z_);  // generator PV
          const reco::GenJet* matchedGenJet = truthMatch.matchedGen;      
      
-[[maybe_unused]]           float minDR = truthMatch.dR; // example: distance saved in the struct
+           float minDR = truthMatch.dR; // example: distance saved in the struct
            bool isHSjet = truthMatch.isHS;
            bool isPUjet = !isHSjet;
 
@@ -1863,36 +2099,36 @@ auto processFastJetCollection = [&](const std::vector<fastjet::PseudoJet>& jetsI
     purity_out     = (totalRecoJets > 0)   ? float(nRecoJetsHS)/totalRecoJets : -1.0f;
 };
 
-processJetCollection(*jets,  *genJets, 
+processJetCollection(*jets,  genJets, 
 	jetIsHS_puppi_all_, jetPt_puppi_all_, jetAbsEta_puppi_all_, jetResponse_PR_puppi_all_,genPt_puppi_all_, puFracPt_algo_puppi_all_, puFracCount_algo_puppi_all_, puFracPt_truth_puppi_all_, puFracCount_truth_puppi_all_,jetDeltaR_puppi_all_,pf_indices_puppi_all_,
 //	jetPt_puppi_5leading_, jetAbsEta_puppi_5leading_, jetResponse_PR_puppi_5leading_, genPt_puppi_5leading_, puFracPt_puppi_5leading_, puFracCount_puppi_5leading_,
 	totalRecoJets_puppi, totalPUJets_puppi, puJetFraction_puppi_all_,efficiency_puppi_, purity_puppi_);
 
 
 //const auto& pfrawJetsConst = pfrawJets;
-processFastJetCollection(pfrawJets,  *genJets, 
+processFastJetCollection(pfrawJets,  genJets, 
 	jetIsHS_pfraw_all_, jetPt_pfraw_all_, jetAbsEta_pfraw_all_, jetResponse_PR_pfraw_all_,genPt_pfraw_all_, puFracPt_algo_pfraw_all_, puFracCount_algo_pfraw_all_,puFracPt_truth_pfraw_all_, puFracCount_truth_pfraw_all_,jetDeltaR_pfraw_all_,pf_indices_pfraw_all_,
 //	jetPt_pfraw_5leading_, jetAbsEta_pfraw_5leading_, jetResponse_PR_pfraw_5leading_, genPt_pfraw_5leading_, puFracPt_pfraw_5leading_, puFracCount_pfraw_5leading_,
 	totalRecoJets_pfraw, totalPUJets_pfraw, puJetFraction_pfraw_all_,efficiency_pfraw_, purity_pfraw_);
 
-processFastJetCollection(fromPV3Jets,  *genJets, 
+processFastJetCollection(fromPV3Jets,  genJets, 
 	jetIsHS_fromPV3_all_, jetPt_fromPV3_all_, jetAbsEta_fromPV3_all_, jetResponse_PR_fromPV3_all_,genPt_fromPV3_all_, puFracPt_algo_fromPV3_all_, puFracCount_algo_fromPV3_all_,puFracPt_truth_fromPV3_all_, puFracCount_truth_fromPV3_all_,jetDeltaR_fromPV3_all_,pf_indices_fromPV3_all_,
 //	jetPt_fromPV3_5leading_, jetAbsEta_fromPV3_5leading_, jetResponse_PR_fromPV3_5leading_, genPt_fromPV3_5leading_, puFracPt_fromPV3_5leading_, puFracCount_fromPV3_5leading_,
 	totalRecoJets_fromPV3, totalPUJets_fromPV3, puJetFraction_fromPV3_all_,efficiency_fromPV3_, purity_fromPV3_);
 
-processFastJetCollection(tightJets,  *genJets, 
+processFastJetCollection(tightJets,  genJets, 
 	jetIsHS_tight_all_,jetPt_tight_all_, jetAbsEta_tight_all_, jetResponse_PR_tight_all_,genPt_tight_all_, puFracPt_algo_tight_all_, puFracCount_algo_tight_all_,puFracPt_truth_tight_all_, puFracCount_truth_tight_all_,jetDeltaR_tight_all_,pf_indices_tight_all_,
 //	jetPt_tight_5leading_, jetAbsEta_tight_5leading_, jetResponse_PR_tight_5leading_, genPt_tight_5leading_, puFracPt_tight_5leading_, puFracCount_tight_5leading_,
 	totalRecoJets_tight, totalPUJets_tight, puJetFraction_tight_all_,efficiency_tight_, purity_tight_);
 
 
-processFastJetCollection(looseJets,  *genJets,
+processFastJetCollection(looseJets,  genJets,
 	jetIsHS_loose_all_, jetPt_loose_all_, jetAbsEta_loose_all_, jetResponse_PR_loose_all_,genPt_loose_all_, puFracPt_algo_loose_all_, puFracCount_algo_loose_all_,puFracPt_truth_loose_all_, puFracCount_truth_loose_all_,jetDeltaR_loose_all_,pf_indices_loose_all_,
 //	jetPt_loose_5leading_, jetAbsEta_loose_5leading_, jetResponse_PR_loose_5leading_, genPt_loose_5leading_, puFracPt_loose_5leading_, puFracCount_loose_5leading_,
 	totalRecoJets_loose, totalPUJets_loose, puJetFraction_loose_all_,efficiency_loose_, purity_loose_);
 
 
-processFastJetCollection(timeJets,  *genJets, 
+processFastJetCollection(timeJets,  genJets, 
 	jetIsHS_time_all_, jetPt_time_all_, jetAbsEta_time_all_, jetResponse_PR_time_all_,genPt_time_all_, puFracPt_algo_time_all_, puFracCount_algo_time_all_,puFracPt_truth_time_all_, puFracCount_truth_time_all_, jetDeltaR_time_all_,pf_indices_time_all_,
 //	jetPt_time_5leading_, jetAbsEta_time_5leading_, jetResponse_PR_time_5leading_, genPt_time_5leading_, puFracPt_time_5leading_, puFracCount_time_5leading_,
 	totalRecoJets_time, totalPUJets_time, puJetFraction_time_all_,efficiency_time_, purity_time_);
@@ -1941,9 +2177,9 @@ pv_nTracks_.clear();
   }
 
   // Fill generator particle z-positions
-  if (genp.isValid()) {
-    for (const auto& particle : *genp) {
-//      genparticles_z_.push_back(particle.vz());
+  if (genpVec.empty()) {
+    for (const auto& particle : genpVec) {
+      genparticles_z_.push_back(particle.vz());
     }
   }
 
@@ -1955,8 +2191,6 @@ edm::LogPrint("JetTreeProducer")
      << "Filling event with "
      << pf_keepAlways.size() << " PFs";
 
-edm::LogWarning("particle check")
-    << "charged particles = " << N_charged;
 edm::LogWarning("particle check")
     << "charged particles = " << N_charged
     << ", neutral particles = " << N_neutral;
@@ -1971,6 +2205,15 @@ std::cout << "PF candidates: " << pf_pt.size()
           << " keepAlways: " << pf_keepAlways.size()
           << " hasValidTime: " << pf_hasValidTime.size()
           << std::endl;
+
+edm::LogInfo("JetTreeProducer") << "Found genJets: size = " << genJets.size();
+for (size_t i=0; i < std::min<size_t>(genJets.size(), 5); ++i) {
+    const auto& g = genJets[i];
+    edm::LogInfo("JetTreeProducer") << "  GenJet[" << i << "]: pt=" << g.pt()
+                                   << " eta=" << g.eta()
+                                   << " phi=" << g.phi()
+                                   << " vz=" << g.vz();
+ }
 
 tree_->Fill();
   // sanity-check mapping: each stored pf pointer should match pf_coll[i]

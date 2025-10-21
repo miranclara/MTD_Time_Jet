@@ -1584,26 +1584,85 @@ bool hasGenZ = (genvertex_source != "fallback_zero");
     pf_isPU_truth.push_back(isHS_truth ? 0 : 1);
  
     //==========PF HS/PU check End====================i
-    #ifdef DEBUG_PU_DIAG
-    if (iEvent.id().event() < 10) { // only first few events
-      std::cout << "\n=== Event " << iEvent.id().event() << " ===" << std::endl;
+#ifdef DEBUG_PU_DIAG
+  // === Temporary counters (declare static so they persist between events)
+  static unsigned int totalPF_all = 0;
+  static unsigned int totalPF_algoPU = 0;
+  static unsigned int totalPF_truthPU = 0;
+  static unsigned int totalPF_algoMis = 0;  // algorithmic misclassification
+  static unsigned int totalPF_truthMis = 0; // truth-based misclassification
+  static unsigned int nEventsChecked = 0;
+
+  edm::Handle<std::vector<reco::Vertex>> pv_handle;
+  iEvent.getByToken(pvsToken_, pv_handle);
+  const size_t nPV = pv_handle.isValid() ? pv_handle->size() : 0;
+
+  // --- Only run this diagnostic for no-PU samples (nPV <= 1)
+  if (nPV <= 1) {
+
+    // Local event counters
+    unsigned int nPF_algoPU = 0, nPF_truthPU = 0, nPF_total = 0;
+    unsigned int nMis_algo = 0, nMis_truth = 0;
+
+    for (size_t iPF = 0; iPF < pfcands->size(); ++iPF) {
+      const auto& pf = (*pfcands)[iPF];
+      bool algoPU   = pf_isPU_algo[iPF];
+      bool truthPU  = pf_isPU_truth[iPF];
+      bool misAlgo  = (algoPU != truthPU); // mismatch between algo & truth classification
+
+      ++nPF_total;
+      if (algoPU) ++nPF_algoPU;
+      if (truthPU) ++nPF_truthPU;
+      if (misAlgo) ++nMis_algo;
+
+      // Print first few PFs for inspection
+      if (iPF < 5 && iEvent.id().event() < 10) {
+        std::cout << "[DiagPF] evt=" << iEvent.id().event()
+                  << " PF[" << iPF << "] pt=" << pf.pt()
+                  << " eta=" << pf.eta()
+                  << " charge=" << pf.charge()
+                  << " fromPV=" << pf.fromPV()
+                  << " pvAssocQ=" << pf.pvAssociationQuality()
+                  << " algoPU=" << algoPU
+                  << " truthPU=" << truthPU
+                  << std::endl;
+      }
     }
 
-    // Print only if no-PU sample (nPV ~ 1)
-    edm::Handle<std::vector<reco::Vertex>> pv_handle;
-    iEvent.getByToken(pvsToken_, pv_handle);
-    const size_t nPV = pv_handle.isValid() ? pv_handle->size() : 0;
-    if (nPV <= 1 && iPF < 10) {
-      std::cout << "[DiagPF] PF[" << iPF << "] pt=" << pf.pt()
-                << " eta=" << pf.eta()
-                << " charge=" << pf.charge()
-                << " fromPV=" << pf.fromPV()
-                << " pvAssocQuality=" << pf.pvAssociationQuality()
-                << " algoPU=" << pf_isPU_algo.back()
-                << " truthPU=" << pf_isPU_truth.back()
-                << std::endl;
-    }
-    #endif
+    // Event-level fractions
+    float frac_algoPU = (nPF_total > 0) ? float(nPF_algoPU) / nPF_total : 0;
+    float frac_truthPU = (nPF_total > 0) ? float(nPF_truthPU) / nPF_total : 0;
+    float frac_mis = (nPF_total > 0) ? float(nMis_algo) / nPF_total : 0;
+
+    std::cout << std::fixed << std::setprecision(3)
+              << "[DiagSummary] evt=" << iEvent.id().event()
+              << " nPF=" << nPF_total
+              << " algoPU=" << frac_algoPU * 100 << "%"
+              << " truthPU=" << frac_truthPU * 100 << "%"
+              << " misAlgo=" << frac_mis * 100 << "%"
+              << std::endl;
+
+    // Update global counters
+    totalPF_all += nPF_total;
+    totalPF_algoPU += nPF_algoPU;
+    totalPF_truthPU += nPF_truthPU;
+    totalPF_algoMis += nMis_algo;
+    ++nEventsChecked;
+  }
+
+  // --- Print global average every 50 events
+  if (nEventsChecked % 50 == 0 && totalPF_all > 0) {
+    float avg_algoPU  = 100.0f * totalPF_algoPU  / totalPF_all;
+    float avg_truthPU = 100.0f * totalPF_truthPU / totalPF_all;
+    float avg_mis     = 100.0f * totalPF_algoMis / totalPF_all;
+    std::cout << "[DiagGlobal] after " << nEventsChecked << " events: "
+              << " avg_algoPU=" << avg_algoPU << "%"
+              << " avg_truthPU=" << avg_truthPU << "%"
+              << " avg_mis=" << avg_mis << "%"
+              << std::endl;
+  }
+#endif
+
 
     float eta = pf.eta(); 
     bool isInMTD = (std::abs(eta) <= 3.0);

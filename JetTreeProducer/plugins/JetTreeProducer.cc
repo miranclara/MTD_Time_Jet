@@ -127,7 +127,7 @@ const pat::PackedGenParticle* matchToGen(const pat::PackedCandidate& pf,
 
   for (const auto& gen : genParticles) {
     // --- Physics requirement: must be HS / from PV ---
-    if (!(gen.fromHardProcessFinalState() || gen.isPromptFinalState())) continue;
+    if (!(gen.fromHardProcessFinalState() && gen.isPromptFinalState())) continue;
 //    if (!(gen.isHardProcess())) continue;//AOD,reco::GenParticle only
 
     // --- (Optional) require same particle type ---
@@ -713,6 +713,8 @@ int nPUJets_time_, nRecoJets_time_;
   
   std::vector<float> pf_vertex,pf_pt, pf_eta, pf_phi, pf_energy;
   std::vector<float> pf_charge,pf_puppiWeight,pf_puppiWeightNoLep;//For <pat::PackedCandidate> collection
+  std::vector<float> pf_pvQuality;//associatedPVIndex, For <pat::PackedCandidate> collection
+  std::vector<int> pf_pvIndex;//associatedPVIndex, For <pat::PackedCandidate> collection
   std::vector<float> pf_dxy, pf_dz, pf_dzError, pf_dzSig;
   std::vector<float> pf_time, pf_timeError, pf_dt, pf_dtErr, pf_dtSig;//For <pat::PackedCandidate> collection
   std::vector<float> pf_vx, pf_vy, pf_vz;
@@ -1015,6 +1017,8 @@ void JetTreeProducer::beginJob() {
   tree_->Branch("pf_charge", &pf_charge);
   tree_->Branch("pf_puppiWeight", &pf_puppiWeight);
   tree_->Branch("pf_puppiWeightNoLep", &pf_puppiWeightNoLep);
+  tree_->Branch("pf_pvQuality", &pf_pvQuality);
+  tree_->Branch("pf_pvIndex", &pf_pvIndex);
   tree_->Branch("pf_dxy", &pf_dxy);
   tree_->Branch("pf_dz", &pf_dz);
   tree_->Branch("pf_dzError", &pf_dzError);
@@ -1165,6 +1169,7 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   pf_charge.clear();
   pf_puppiWeight.clear();
   pf_puppiWeightNoLep.clear();
+  pf_pvIndex.clear();
   pf_dxy.clear();
   pf_dz.clear();
   pf_dzError.clear();
@@ -1513,6 +1518,21 @@ bool hasGenZ = (genvertex_source != "fallback_zero");
 //  for (const auto& pf : pf_coll) {
 //  for (size_t i = 0; i < pf_coll.size(); ++i)
     const auto& pf = pf_coll[iPF];
+
+    //Diagnostic print of associatedPVIndex
+    int pvIndex = pf.vertexRef().key();
+    auto pvQuality = pf.pvAssociationQuality();
+
+//    std::cout << "PF[" << iPF << "] PV index = " << pf.vertexRef().key()
+//              << " quality = " << pf.pvAssociationQuality() << std::endl;
+//    if (pvIndex != 0) { std::cout <<"isPU = true"<< std::endl;}
+//    else {std::cout <<"isPU = false"<<std::endl;}
+//    std::cout << "pT=" << pf.pt()
+//          << " pvAssocQuality=" << pf.pvAssociationQuality()
+//          << " fromPV=" << pf.fromPV()
+//          << std::endl;
+    //End of Diagnostic print of associatedPVIndex
+
     pf_for_allCollections.push_back(&pf);
     pf_pt.push_back(pf.pt());
     pf_eta.push_back(pf.eta());
@@ -1521,6 +1541,8 @@ bool hasGenZ = (genvertex_source != "fallback_zero");
     pf_charge.push_back(pf.charge());
     pf_puppiWeight.push_back(pf.puppiWeight());
     pf_puppiWeightNoLep.push_back(pf.puppiWeightNoLep());
+    pf_pvQuality.push_back(pf.pvAssociationQuality());
+    pf_pvIndex.push_back(pf.vertexRef().key());
 // vertex is always available, but dz/dzError are not
     pf_vx.push_back(pf.vertex().x());
     pf_vy.push_back(pf.vertex().y());
@@ -1561,7 +1583,27 @@ bool hasGenZ = (genvertex_source != "fallback_zero");
     pf_isHS_truth.push_back(isHS_truth ? 1 : 0);
     pf_isPU_truth.push_back(isHS_truth ? 0 : 1);
  
-    //==========PF HS/PU check End====================
+    //==========PF HS/PU check End====================i
+    #ifdef DEBUG_PU_DIAG
+    if (iEvent.id().event() < 10) { // only first few events
+      std::cout << "\n=== Event " << iEvent.id().event() << " ===" << std::endl;
+    }
+
+    // Print only if no-PU sample (nPV ~ 1)
+    edm::Handle<std::vector<reco::Vertex>> pv_handle;
+    iEvent.getByToken(pvsToken_, pv_handle);
+    const size_t nPV = pv_handle.isValid() ? pv_handle->size() : 0;
+    if (nPV <= 1 && iPF < 10) {
+      std::cout << "[DiagPF] PF[" << iPF << "] pt=" << pf.pt()
+                << " eta=" << pf.eta()
+                << " charge=" << pf.charge()
+                << " fromPV=" << pf.fromPV()
+                << " pvAssocQuality=" << pf.pvAssociationQuality()
+                << " algoPU=" << pf_isPU_algo.back()
+                << " truthPU=" << pf_isPU_truth.back()
+                << std::endl;
+    }
+    #endif
 
     float eta = pf.eta(); 
     bool isInMTD = (std::abs(eta) <= 3.0);
@@ -2240,9 +2282,6 @@ tree_->Fill();
   std::vector<float> puFracCount_truth_puppi_all_;
 
 
-
-
-
   if (!jetPt_puppi_all_.empty()) {
       double sumHS = 0, sumPU = 0;
       int nHS = 0, nPU = 0;
@@ -2262,6 +2301,7 @@ tree_->Fill();
           << (nPU > 0 ? sumPU/nPU : -1);
   }//if (!jetPt_.empty())
 
+ std::cout << "Number of PVs: " << pv_handle->size() << std::endl;
 
 }//End of void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) {
 

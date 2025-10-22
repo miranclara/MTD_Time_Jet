@@ -119,19 +119,39 @@ inline std::vector<unsigned int> getPFIndicesFromPseudoJet(
 // --- Updated PF candidate ↔ GenParticle matching ---
 // Step 1: Require gen particle to be from hard scatter (status flags)
 // Step 2: Among those, find best ΔR match
-const pat::PackedGenParticle* matchToGen(const pat::PackedCandidate& pf,
+//const pat::PackedGenParticle* matchToGen(const pat::PackedCandidate& pf,
+std::pair<const pat::PackedGenParticle*, float> matchToGen(const pat::PackedCandidate& pf,
                                          const std::vector<pat::PackedGenParticle>& genParticles,
-                                         float maxDR = 0.05) {
+                                         float maxDR = 0.4) {//0.05
   const pat::PackedGenParticle* bestMatch = nullptr;
-  float bestDR = maxDR;
+//  float bestDR = maxDR;
+  float bestDR = (pf.charge() == 0) ? 1.0 : 0.4;
 
   for (const auto& gen : genParticles) {
     // --- Physics requirement: must be HS / from PV ---
-    if (!(gen.fromHardProcessFinalState() && gen.isPromptFinalState())) continue;
+//    if (!(gen.fromHardProcessFinalState()||gen.isPromptFinalState()||gen.isDirectHardProcessTauDecayProductFinalState() ||gen.isDirectPromptTauDecayProductFinalState())) continue;
 //    if (!(gen.isHardProcess())) continue;//AOD,reco::GenParticle only
 
-    // --- (Optional) require same particle type ---
-    if (std::abs(pf.pdgId()) != std::abs(gen.pdgId())) continue;
+    if (pf.charge() != 0) {
+      if (!(gen.fromHardProcessFinalState() || gen.isPromptFinalState() ||
+            gen.isDirectHardProcessTauDecayProductFinalState() ||
+            gen.isDirectPromptTauDecayProductFinalState()))
+        continue;
+    }
+    // --- For neutrals: allow all stable final copies
+    else {
+      if (!gen.statusFlags().isLastCopy()) continue;
+    }
+
+    // --- Relaxed pdgId match for neutrals
+    if (pf.charge() == 0) {
+      if (!(abs(gen.pdgId()) == 22 || abs(gen.pdgId()) == 111 || abs(gen.pdgId()) == 130 || abs(gen.pdgId()) == 2112))
+        continue;
+    } else {
+      if (abs(pf.pdgId()) != abs(gen.pdgId())) continue;
+    }
+    // --- (Optional) require same particle type:TOO STRIC ---
+//    if (std::abs(pf.pdgId()) != std::abs(gen.pdgId())) continue;
 
     // --- ΔR matching ---
     float dR = reco::deltaR(pf.eta(), pf.phi(), gen.eta(), gen.phi());
@@ -140,9 +160,8 @@ const pat::PackedGenParticle* matchToGen(const pat::PackedCandidate& pf,
       bestMatch = &gen;
     }
   }
-
-  return bestMatch;  // nullptr if no good match
-}
+  return std::make_pair(bestMatch, bestDR);  // nullptr if no good match
+}//End of  matchToGen
 
 // --- Helper Function3: Jet ↔ GenJet Jetresponse calcultation---
 inline float computeResponse(const pat::Jet& recoJet,
@@ -730,6 +749,7 @@ int nPUJets_time_, nRecoJets_time_;
   std::vector<int> pf_isPU_algo;//test
   std::vector<int> pf_isHS_truth;//test
   std::vector<int> pf_isPU_truth;//test
+  std::vector<float> pf_dR_truth_;//test
  
   std::vector<int> pf_keepAlways;//was bool
   std::vector<int> pf_keepDisplaced;//was bool
@@ -1109,7 +1129,7 @@ void JetTreeProducer::beginJob() {
   tree_->Branch("pf_isPU_algo",  &pf_isPU_algo);//test
   tree_->Branch("pf_isHS_truth", &pf_isHS_truth);//test
   tree_->Branch("pf_isPU_truth", &pf_isPU_truth);//test
-
+  tree_->Branch("pf_dR_truth", &pf_dR_truth_);
 
 }//End of void JetTreeProducer::beginJob()
 
@@ -1169,6 +1189,7 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   pf_charge.clear();
   pf_puppiWeight.clear();
   pf_puppiWeightNoLep.clear();
+  pf_pvQuality.clear();
   pf_pvIndex.clear();
   pf_dxy.clear();
   pf_dz.clear();
@@ -1188,7 +1209,7 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   pf_isPU_algo.clear();//test
   pf_isHS_truth.clear();//test
   pf_isPU_truth.clear();//test
-
+  pf_dR_truth_.clear();//test
 
   pf_isHS.clear();
   pf_fromPV.clear();
@@ -1565,24 +1586,23 @@ bool hasGenZ = (genvertex_source != "fallback_zero");
     // Truth classification via Gen match ---
     // PV-consistency check is already enforced inside matchToGen,
     // so no extra vz cut is needed here.
-    bool isHS_truth = false;
-//    const pat::PackedGenParticle* genMatch = matchToGen(pf, *genp);//old dereferenc issue
 
       //New Test         
       // Safe truth-match: only attempt if gen collection is present (genpVec non-empty)
-      const pat::PackedGenParticle* genMatch = nullptr;
-      if (!genpVec.empty()) {
-        genMatch = matchToGen(pf, genpVec); // pass the vector reference directly
-      }//New Test
+      const pat::PackedGenParticle* matchedGen = nullptr;
+      float dR_value = -1.f;
 
-    if (genMatch) {
-//     if (std::abs(genMatch->vz() - genvertex_z_) < 0.2)//reduent
-    isHS_truth = true;
-    }
-    // save truth
-    pf_isHS_truth.push_back(isHS_truth ? 1 : 0);
-    pf_isPU_truth.push_back(isHS_truth ? 0 : 1);
- 
+      if (!genpVec.empty()) {
+      auto matchResult = matchToGen(pf, genpVec,(pf.charge() == 0 ? 1.0 : 0.4));
+      matchedGen = matchResult.first;
+      dR_value   = matchResult.second;
+      }
+
+     pf_dR_truth_.push_back(matchedGen ? dR_value : -1.f);
+
+    bool isHS_truth = (matchedGen != nullptr);
+    pf_isPU_truth.push_back(!isHS_truth);
+    pf_isHS_truth.push_back(isHS_truth); 
     //==========PF HS/PU check End====================i
 #ifdef DEBUG_PU_DIAG
   // === Temporary counters (declare static so they persist between events)

@@ -126,6 +126,7 @@ std::pair<const pat::PackedGenParticle*, float> matchToGen(const pat::PackedCand
   const pat::PackedGenParticle* bestMatch = nullptr;
 //  float bestDR = maxDR;
   float bestDR = (pf.charge() == 0) ? 1.0 : 0.4;
+  bool debug = true;
 
   for (const auto& gen : genParticles) {
     // --- Physics requirement: must be HS / from PV ---
@@ -135,31 +136,53 @@ std::pair<const pat::PackedGenParticle*, float> matchToGen(const pat::PackedCand
     if (pf.charge() != 0) {
       if (!(gen.fromHardProcessFinalState() || gen.isPromptFinalState() ||
             gen.isDirectHardProcessTauDecayProductFinalState() ||
-            gen.isDirectPromptTauDecayProductFinalState()))
-        continue;
-    }
-    // --- For neutrals: allow all stable final copies
-    else {
-      if (!gen.statusFlags().isLastCopy()) continue;
-    }
+            gen.isDirectPromptTauDecayProductFinalState())){
+            if(debug) std::cout << "[DiagMatch] PF (pt=" << pf.pt() << ", eta=" << pf.eta()
+                                << ", pdgId=" << pf.pdgId() << ") failed: not HS/prompt gen (pdgId=" 
+                                << gen.pdgId() << ")" << std::endl;
+                                continue;
+            }//gen particle failed your hard-scatter filters
+      }
+      // --- For neutrals: allow all stable final copies
+      else {
+        if(!gen.statusFlags().isLastCopy()){
+          if(debug) std::cout << "[DiagMatch] Neutral PF (pt=" << pf.pt()
+                               << ", eta=" << pf.eta() << ") failed: gen not last copy (pdgId="
+                               << gen.pdgId() << ")" << std::endl;
+                               continue;
+          }//gen particle wasn’t stable (intermediate copy)
+      }
 
     // --- Relaxed pdgId match for neutrals
     if (pf.charge() == 0) {
-      if (!(abs(gen.pdgId()) == 22 || abs(gen.pdgId()) == 111 || abs(gen.pdgId()) == 130 || abs(gen.pdgId()) == 2112))
-        continue;
-    } else {
-      if (abs(pf.pdgId()) != abs(gen.pdgId())) continue;
-    }
+      if (!(abs(gen.pdgId()) == 22 || abs(gen.pdgId()) == 111 || abs(gen.pdgId()) == 130 || abs(gen.pdgId()) == 2112)){
+           if (debug) std::cout << "[DiagMatch] Neutral PF failed: gen pdgId=" << gen.pdgId()
+                                << " not in allowed set" << std::endl;
+                                continue;
+           }//PF and gen particle types differ
+      } else {
+      if (abs(pf.pdgId()) != abs(gen.pdgId())){            
+        if (debug) std::cout << "[DiagMatch] Charged PF failed: PF pdgId=" << pf.pdgId()
+                             << " != GEN pdgId=" << gen.pdgId() << std::endl;
+                              continue;
+        }
+      }
     // --- (Optional) require same particle type:TOO STRIC ---
 //    if (std::abs(pf.pdgId()) != std::abs(gen.pdgId())) continue;
 
     // --- ΔR matching ---
     float dR = reco::deltaR(pf.eta(), pf.phi(), gen.eta(), gen.phi());
+    if (dR > maxDR) {
+        if (debug) std::cout << "[DiagMatch] PF (pt=" << pf.pt()
+                             << ", eta=" << pf.eta() << ") ΔR too large: " << dR << std::endl;
+                            continue;
+    }
+    //----Update best matich if passes all filters   
     if (dR < bestDR) {
       bestDR = dR;
       bestMatch = &gen;
     }
-  }
+  }//End of for(const auto& gen : genParticles)
   return std::make_pair(bestMatch, bestDR);  // nullptr if no good match
 }//End of  matchToGen
 
@@ -1129,7 +1152,8 @@ void JetTreeProducer::beginJob() {
   tree_->Branch("pf_isPU_algo",  &pf_isPU_algo);//test
   tree_->Branch("pf_isHS_truth", &pf_isHS_truth);//test
   tree_->Branch("pf_isPU_truth", &pf_isPU_truth);//test
-  tree_->Branch("pf_dR_truth", &pf_dR_truth_);
+  tree_->Branch("pf_dR_truth", &pf_dR_truth_);//test
+//  tree_->Branch("best_dR_in_event", &best_dR_in_event, "best_dR_in_event/F");//test
 
 }//End of void JetTreeProducer::beginJob()
 
@@ -1210,6 +1234,8 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   pf_isHS_truth.clear();//test
   pf_isPU_truth.clear();//test
   pf_dR_truth_.clear();//test
+  //best_dR_in_event.clear();//test
+
 
   pf_isHS.clear();
   pf_fromPV.clear();
@@ -1528,17 +1554,39 @@ bool hasGenZ = (genvertex_source != "fallback_zero");
   for (const auto& pf : pf_coll) {
     pf_all.push_back(&pf);
   }
-
+// Diagnostic counters
+int nPF_total = 0, nPF_matched = 0, nPF_unmatched = 0;
+int nPF_charged = 0, nPF_charged_matched = 0;
+int nPF_neutral = 0, nPF_neutral_matched = 0;
+float best_dR_in_event = 999.f; 
  
-  //---PF Particle Loop---
-
-
+  //=============  PF Particle Loop  =======================
   int pf_coll_index = 0;
   for (size_t iPF = 0; iPF < pf_coll.size(); ++iPF) {
+  nPF_total++;
 
 //  for (const auto& pf : pf_coll) {
 //  for (size_t i = 0; i < pf_coll.size(); ++i)
     const auto& pf = pf_coll[iPF];
+
+    float eta = pf.eta(); 
+    bool isInMTD = (std::abs(eta) <= 3.0);
+    pf_isInMTD.push_back(isInMTD ? 1 : 0);      
+    const bool isCharged = (pf.charge() != 0);
+    const bool isNeutral = (pf.charge() == 0);
+    const int fromPV = pf.fromPV();
+    const bool keepAlways = (fromPV == 3);
+    pf_isCharged.push_back(isCharged ? 1 : 0);
+   if (isCharged) nPF_charged++;
+   else nPF_neutral++;
+
+    // inside PF candidate loop, before any use:
+    float dtSig = 999.0f;               // sentinel (invalid)
+    const float dtSigCut = 3.0f;        // tune this threshold (was missing)
+ 
+    bool isDisplaced = false;//To keep displaced tracks
+    bool hasValidTime = false;
+    bool hasTimingInfo = false;
 
     //Diagnostic print of associatedPVIndex
     int pvIndex = pf.vertexRef().key();
@@ -1593,17 +1641,37 @@ bool hasGenZ = (genvertex_source != "fallback_zero");
       float dR_value = -1.f;
 
       if (!genpVec.empty()) {
+      edm::LogWarning("JetTreeProducer") << "No packedGenParticles found in this event.";
       auto matchResult = matchToGen(pf, genpVec,(pf.charge() == 0 ? 1.0 : 0.4));
       matchedGen = matchResult.first;
       dR_value   = matchResult.second;
+      } else {
+      // no gen collection
+      dR_value = -99.f;
       }
 
-     pf_dR_truth_.push_back(matchedGen ? dR_value : -1.f);
 
     bool isHS_truth = (matchedGen != nullptr);
     pf_isPU_truth.push_back(!isHS_truth);
     pf_isHS_truth.push_back(isHS_truth); 
+
+    if (isHS_truth) {
+    nPF_matched++;
+    if (isCharged) nPF_charged_matched++;
+    else nPF_neutral_matched++;
+    } else {
+      nPF_unmatched++;
+    }
+    
+    //-----mindR of PF-Gen  ------ 
+    if (matchedGen && dR_value >= 0.f) {
+    if (dR_value < best_dR_in_event)
+      best_dR_in_event = dR_value;
+    }  
+
+     pf_dR_truth_.push_back(matchedGen ? dR_value : -1.f);
     //==========PF HS/PU check End====================i
+
 #ifdef DEBUG_PU_DIAG
   // === Temporary counters (declare static so they persist between events)
   static unsigned int totalPF_all = 0;
@@ -1646,8 +1714,8 @@ bool hasGenZ = (genvertex_source != "fallback_zero");
                   << " algoPU=" << algoPU
                   << " truthPU=" << truthPU
                   << std::endl;
-      }
-    }
+      }//End of if (iPF < 5 && iEvent.id().event() < 10)
+    }//End of for (size_t iPF = 0; iPF < pfcands->size(); ++iPF)
 
     // Event-level fractions
     float frac_algoPU = (nPF_total > 0) ? float(nPF_algoPU) / nPF_total : 0;
@@ -1668,7 +1736,7 @@ bool hasGenZ = (genvertex_source != "fallback_zero");
     totalPF_truthPU += nPF_truthPU;
     totalPF_algoMis += nMis_algo;
     ++nEventsChecked;
-  }
+  }//End of if (nPV <= 1) 
 
   // --- Print global average every 50 events
   if (nEventsChecked % 50 == 0 && totalPF_all > 0) {
@@ -1680,26 +1748,10 @@ bool hasGenZ = (genvertex_source != "fallback_zero");
               << " avg_truthPU=" << avg_truthPU << "%"
               << " avg_mis=" << avg_mis << "%"
               << std::endl;
-  }
+  }//Enf of if (nEventsChecked % 50 == 0 && totalPF_all > 0) 
 #endif
 
 
-    float eta = pf.eta(); 
-    bool isInMTD = (std::abs(eta) <= 3.0);
-    pf_isInMTD.push_back(isInMTD ? 1 : 0);      
-    const bool isCharged = (pf.charge() != 0);
-    const bool isNeutral = (pf.charge() == 0);
-    const int fromPV = pf.fromPV();
-    const bool keepAlways = (fromPV == 3);
-    pf_isCharged.push_back(isCharged ? 1 : 0);
-
-    // inside PF candidate loop, before any use:
-    float dtSig = 999.0f;               // sentinel (invalid)
-    const float dtSigCut = 3.0f;        // tune this threshold (was missing)
- 
-    bool isDisplaced = false;//To keep displaced tracks
-    bool hasValidTime = false;
-    bool hasTimingInfo = false;
 
     // Common PseudoJet for dz-based clustering
     fastjet::PseudoJet pj(pf.px(), pf.py(), pf.pz(), pf.energy());
@@ -1848,8 +1900,10 @@ bool hasGenZ = (genvertex_source != "fallback_zero");
     }//End of if (hasValidTime) else 
     //outside the MTD geometry &seem to have time info:Indicate a reconstruction or simulation artifact.
     ++pf_coll_index;
-  }//End of for (const auto& pf : pf_coll)
+  }//End of for (const auto& pf : pf_coll), End of PF Loop:
 
+if (best_dR_in_event == 999.f)
+  best_dR_in_event = -1.f;
 
 /*
 float efficiency_tight = (N_HS_total > 0) ? float(N_selected_HS_tight) / N_HS_total : 0;
@@ -1946,7 +2000,20 @@ for (const auto& jet : timeJets) {
     jetTimeSig_time_all_.push_back(jetTsig);
 }//End of for (const auto& jet : timeJets)
 
+//============ End of PF loop - diagnostic summary========================
 
+float frac_matched_all = (nPF_total > 0) ? float(nPF_matched)/nPF_total : 0.f;
+float frac_matched_ch  = (nPF_charged > 0) ? float(nPF_charged_matched)/nPF_charged : 0.f;
+float frac_matched_neu = (nPF_neutral > 0) ? float(nPF_neutral_matched)/nPF_neutral : 0.f;
+
+std::cout << std::fixed << std::setprecision(2);
+std::cout << "[DiagPF] Event " << iEvent.id().event()
+          << " | total=" << nPF_total
+          << " matched=" << nPF_matched
+          << " (" << 100*frac_matched_all << "%)"
+          << " | charged=" << nPF_charged << " (" << 100*frac_matched_ch << "% matched)"
+          << " | neutral=" << nPF_neutral << " (" << 100*frac_matched_neu << "% matched)"
+          << std::endl;
 
 //===== Generic std::vector<pat::Jet> Loop Template=====
 auto processJetCollection = [&](const std::vector<pat::Jet>& jetsIn,

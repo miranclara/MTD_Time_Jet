@@ -34,8 +34,9 @@
 
 #include <memory>
 #include <typeinfo>
-#define DEBUG_PUCONTENT
-
+//#define DEBUG_PUCONTENT
+//#define DEBUG_MATCH_DETAIL
+//#define DEBUG_PU_DIAG
 struct PrimaryVertex {
     float x;
     float y;
@@ -126,7 +127,8 @@ std::pair<const pat::PackedGenParticle*, float> matchToGen(const pat::PackedCand
   const pat::PackedGenParticle* bestMatch = nullptr;
 //  float bestDR = maxDR;
   float bestDR = (pf.charge() == 0) ? 1.0 : 0.4;
-  bool debug = true;
+  bool debug = false;
+  bool finalbest=false;
 
   for (const auto& gen : genParticles) {
     // --- Physics requirement: must be HS / from PV ---
@@ -181,8 +183,76 @@ std::pair<const pat::PackedGenParticle*, float> matchToGen(const pat::PackedCand
     if (dR < bestDR) {
       bestDR = dR;
       bestMatch = &gen;
+      finalbest=true;
     }
-  }//End of for(const auto& gen : genParticles)
+  }//End of for(const auto& gen : genParticles):End of loop over genParticles
+
+  // Static counters (persist across function calls during one job)
+  static unsigned int totalPF_checked = 0;
+  static unsigned int totalPF_matched = 0;
+  static unsigned int totalPF_noMatch = 0;
+  static unsigned int totalPF_pdgMismatch = 0;
+  static unsigned int totalPF_chMismatch    = 0; // charged mismatch
+  static unsigned int totalPF_neuMismatch   = 0; // neutral mismatch
+  ++totalPF_checked;
+
+//  if (debug) {//DO NOT REMOVE:Toggle Verbosity
+   bool isCharged = (pf.charge() != 0);
+
+    if (finalbest&&bestMatch) {
+      bool pdgMismatch = (std::abs(pf.pdgId()) != std::abs(bestMatch->pdgId()));
+      std::cout << "[DiagBestMatch] "
+                << (isCharged ? "CHARGED" : "NEUTRAL")
+                << " PF (pt=" << pf.pt()
+                << ", eta=" << pf.eta()
+                << ", pdgId=" << pf.pdgId()
+                << ") best match: GEN pdgId=" << bestMatch->pdgId()
+                << ", dR=" << bestDR;
+
+      if (pdgMismatch) {
+        std::cout << "  <-- PDG MISMATCH (" 
+                  << (isCharged ? "charged" : "neutral") << ")";
+
+        ++totalPF_pdgMismatch;
+        if (isCharged) ++totalPF_chMismatch;
+        else ++totalPF_neuMismatch;
+      } else {
+        ++totalPF_matched;
+      }
+    std::cout << std::endl;
+
+    } else {
+      std::cout << "[DiagBestMatch] "
+                << (isCharged ? "CHARGED" : "NEUTRAL")
+                << " PF (pt=" << pf.pt()
+                << ", eta=" << pf.eta()
+                << ", pdgId=" << pf.pdgId()
+                << ") has NO gen match (bestDR=" << bestDR << ")"
+                << std::endl;
+     ++totalPF_noMatch;
+    }
+
+    // --- Print small summary every 100 PF candidates ---
+    if (totalPF_checked % 100 == 0) {
+      float fracMatched    = 100.f * totalPF_matched     / totalPF_checked;
+      float fracNoMatch    = 100.f * totalPF_noMatch     / totalPF_checked;
+      float fracMismatch   = 100.f * totalPF_pdgMismatch / totalPF_checked;
+//      float fracChMis      = 100.f * totalPF_chMismatch  / totalPF_checked;
+//      float fracNeuMis     = 100.f * totalPF_neuMismatch / totalPF_checked;
+      float fracChMis      = 100.f * totalPF_chMismatch  / totalPF_pdgMismatch;
+      float fracNeuMis     = 100.f * totalPF_neuMismatch / totalPF_pdgMismatch;
+
+      std::cout << "[DiagMatchSummary] after " << totalPF_checked << " PFs: "
+                << " matched="      << std::fixed << std::setprecision(1) << fracMatched
+                << "%, noMatch="    << fracNoMatch
+                << "%, pdgMismatch="<< fracMismatch
+                << "% (charged="    << fracChMis
+                << "%, neutral="    << fracNeuMis
+                << "%)"
+                << std::endl;
+    }
+//  }//End of if (debug) 
+
   return std::make_pair(bestMatch, bestDR);  // nullptr if no good match
 }//End of  matchToGen
 
@@ -1641,15 +1711,84 @@ float best_dR_in_event = 999.f;
       float dR_value = -1.f;
 
       if (!genpVec.empty()) {
-      edm::LogWarning("JetTreeProducer") << "No packedGenParticles found in this event.";
       auto matchResult = matchToGen(pf, genpVec,(pf.charge() == 0 ? 1.0 : 0.4));
       matchedGen = matchResult.first;
       dR_value   = matchResult.second;
+  
+  // === Diagnostic: show gen candidates and cut-flow per PF ===
+      #ifdef DEBUG_MATCH_DETAIL
+        static int dbgEventCount = 0;
+        static int dbgPFCount = 0;
+        const int maxEventsToPrint = 3;
+        const int maxPFsToPrintPerEvt = 10;
+        if (iEvent.id().event() < maxEventsToPrint && dbgPFCount < maxPFsToPrintPerEvt) {
+          ++dbgPFCount;
+
+          std::cout << "\n[DiagMatchSummary] evt=" << iEvent.id().event()
+                    << " PF[" << iPF << "] pt=" << pf.pt()
+                    << " eta=" << pf.eta()
+                    << " charge=" << pf.charge()
+                    << " pf_pdg=" << pf.pdgId()
+                    << " bestDR=" << dR_value
+                    << " matched=" << (matchedGen ? 1 : 0)
+                    << std::endl;
+
+    // --- Re-run local diagnostic over genpVec (read-only) ---
+          int n_before = (int)genpVec.size();
+          int n_passFlag = 0, n_passDR = 0, n_passPDG = 0;
+          float myDRcut = (pf.charge() == 0 ? 1.0 : 0.4);
+          const pat::PackedGenParticle* bestLocalGen = nullptr;
+          float bestLocalDR = 999.f;
+
+          int idx = 0;
+          for (const auto &gen : genpVec) {
+            bool fromHard = gen.fromHardProcessFinalState();
+            bool isPrompt = gen.isPromptFinalState();
+            bool isLastCopy = gen.statusFlags().isLastCopy();
+            int pdg = gen.pdgId();
+            float dR = reco::deltaR(pf.eta(), pf.phi(), gen.eta(), gen.phi());
+            bool passFlag = (pf.charge() != 0)
+                            ? (fromHard || isPrompt ||
+                              gen.isDirectHardProcessTauDecayProductFinalState() ||
+                              gen.isDirectPromptTauDecayProductFinalState())
+                            : isLastCopy;
+            bool passPDG = (pf.charge() != 0)
+                            ? (std::abs(pf.pdgId()) == std::abs(pdg))
+                            : (std::abs(pdg) == 22 || std::abs(pdg) == 111 ||
+                               std::abs(pdg) == 130 || std::abs(pdg) == 2112);
+
+            if (passFlag) ++n_passFlag;
+            if (passFlag && dR <= myDRcut) ++n_passDR;
+            if (passFlag && dR <= myDRcut && passPDG) ++n_passPDG;
+            if (dR < bestLocalDR) { bestLocalDR = dR; bestLocalGen = &gen; }
+
+      // mark best candidate inline
+            bool isBest = (&gen == bestLocalGen);
+            std::cout << (isBest ? " >>" : "   ")
+                      << " gen[" << idx << "] pdg=" << pdg
+                      << " dR=" << std::fixed << std::setprecision(3) << dR
+                      << " fromHard=" << fromHard
+                      << " isPrompt=" << isPrompt
+                      << " isLastCopy=" << isLastCopy
+                      << std::endl;
+            ++idx;
+          }
+
+          std::cout << "[CutFlow] total=" << n_before
+                    << " passFlag=" << n_passFlag
+                    << " passFlag+DR=" << n_passDR
+                    << " passFlag+DR+PDG=" << n_passPDG
+                    << " bestLocalDR=" << bestLocalDR
+                    << std::endl;
+         }
+   #endif // DEBUG_MATCH_DETAIL
+  // === End of diagnostic block ===
+    
       } else {
       // no gen collection
+      edm::LogWarning("JetTreeProducer") << "No packedGenParticles found in this event.";
       dR_value = -99.f;
       }
-
 
     bool isHS_truth = (matchedGen != nullptr);
     pf_isPU_truth.push_back(!isHS_truth);
@@ -1672,6 +1811,7 @@ float best_dR_in_event = 999.f;
      pf_dR_truth_.push_back(matchedGen ? dR_value : -1.f);
     //==========PF HS/PU check End====================i
 
+
 #ifdef DEBUG_PU_DIAG
   // === Temporary counters (declare static so they persist between events)
   static unsigned int totalPF_all = 0;
@@ -1692,8 +1832,8 @@ float best_dR_in_event = 999.f;
     unsigned int nPF_algoPU = 0, nPF_truthPU = 0, nPF_total = 0;
     unsigned int nMis_algo = 0, nMis_truth = 0;
 
-    for (size_t iPF = 0; iPF < pfcands->size(); ++iPF) {
-      const auto& pf = (*pfcands)[iPF];
+    for (size_t iPF = 0; iPF < pf_coll.size(); ++iPF) {
+      const auto& pf = (pf_coll)[iPF];
       bool algoPU   = pf_isPU_algo[iPF];
       bool truthPU  = pf_isPU_truth[iPF];
       bool misAlgo  = (algoPU != truthPU); // mismatch between algo & truth classification
@@ -1750,8 +1890,6 @@ float best_dR_in_event = 999.f;
               << std::endl;
   }//Enf of if (nEventsChecked % 50 == 0 && totalPF_all > 0) 
 #endif
-
-
 
     // Common PseudoJet for dz-based clustering
     fastjet::PseudoJet pj(pf.px(), pf.py(), pf.pz(), pf.energy());

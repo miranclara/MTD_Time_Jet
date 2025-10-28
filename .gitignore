@@ -1,0 +1,12 @@
+# Ignore CMSSW build areas and outputs
+CMSSW_*
+*/tmp/
+*/lib/
+*/.SCRAM/
+*/logs/
+*.root
+*.pyc
+*.pkl
+*.pcm
+*.so
+*.d

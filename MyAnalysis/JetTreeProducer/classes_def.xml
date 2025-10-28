@@ -1,0 +1,11 @@
+<lcgdict>
+  <!-- Needed for PF indices -->
+  <class name="std::vector<std::vector<unsigned int>>"/>
+  <class name="std::vector<unsigned int>"/>
+
+  <!-- Some of your common PF / jet containers -->
+  <class name="std::vector<float>"/>
+  <class name="std::vector<int>"/>
+  <class name="std::vector<bool>"/>
+</lcgdict>
+

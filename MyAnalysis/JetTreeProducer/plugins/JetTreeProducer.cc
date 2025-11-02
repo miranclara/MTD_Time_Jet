@@ -120,146 +120,201 @@ inline std::vector<unsigned int> getPFIndicesFromPseudoJet(
 // --- Updated PF candidate ↔ GenParticle matching ---
 // Step 1: Require gen particle to be from hard scatter (status flags)
 // Step 2: Among those, find best ΔR match
-//const pat::PackedGenParticle* matchToGen(const pat::PackedCandidate& pf,
+//const pat::PackedGenParticle*    matchToGen(const pat::PackedCandidate& pf,
 std::pair<const pat::PackedGenParticle*, float> matchToGen(const pat::PackedCandidate& pf,
                                          const std::vector<pat::PackedGenParticle>& genParticles,
                                          float maxDR = 0.4) {//0.05
   const pat::PackedGenParticle* bestMatch = nullptr;
-//  float bestDR = maxDR;
-  float bestDR = (pf.charge() == 0) ? 1.0 : 0.4;
-  bool debug = false;
-  bool finalbest=false;
+  float maxDR_charged = 0.4;  // or 0.1, depending on your analysis
+  float maxDR_neutral = 0.8;
+
+  float maxDR_eff = (pf.charge() == 0) ? maxDR_neutral : maxDR_charged;// loose neutral, tight charged   
+  float bestDR = maxDR_eff;
+  bool debug = false;//Debugging Toggle
+//  bool finalbest=false;//Debugging Toggle
+//  float dRHolder=-999;
+//  int DPGIdHolder=-999;
+
+    if (genParticles.empty()) {
+        std::cout << "[matchToGen] WARNING: genParticles vector is empty! skipping match for PF pt="
+                  << pf.pt() << std::endl;
+        return std::make_pair(nullptr, maxDR);
+    }
 
   for (const auto& gen : genParticles) {
-    // --- Physics requirement: must be HS / from PV ---
-//    if (!(gen.fromHardProcessFinalState()||gen.isPromptFinalState()||gen.isDirectHardProcessTauDecayProductFinalState() ||gen.isDirectPromptTauDecayProductFinalState())) continue;
-//    if (!(gen.isHardProcess())) continue;//AOD,reco::GenParticle only
 
-    if (pf.charge() != 0) {//chagred particle
-      if (!(gen.fromHardProcessFinalState() || gen.isPromptFinalState() ||
-            gen.isDirectHardProcessTauDecayProductFinalState() ||
-            gen.isDirectPromptTauDecayProductFinalState())){
-            if(debug) std::cout << "[DiagMatch] PF (pt=" << pf.pt() << ", eta=" << pf.eta()
-                                << ", pdgId=" << pf.pdgId() << ") failed: not HS/prompt gen (pdgId=" 
-                                << gen.pdgId() << ")" << std::endl;
-                                continue;
-            }//gen particle failed your hard-scatter filters
-      }
-      // --- For neutrals: allow all stable final copies
-      else {//neutral
-        if(!gen.statusFlags().isLastCopy()){
-          if(debug) std::cout << "[DiagMatch] Neutral PF (pt=" << pf.pt()
-                               << ", eta=" << pf.eta() << ") failed: gen not last copy (pdgId="
-                               << gen.pdgId() << ")" << std::endl;
-                               continue;
-          }//gen particle wasn’t stable (intermediate copy)
-      }//End of if  (pf.charge() != 0){} else{}
+   //------------------------------------------------------------------
+        // Charged PF: require (isHSorPrompt && PDG match)
+        //------------------------------------------------------------------
+        if (pf.charge() != 0) {
 
-    // --- Relaxed pdgId match for neutrals
-    if (pf.charge() == 0) {//Neutral
-        std::cout << "Neutral PF: pdgId=" << pf.pdgId()
-//            << "  particleId=" << pf.particleId()
-            << std::endl;
-      bool passPDG = (std::abs(gen.pdgId()) == 22 ||
-                      std::abs(gen.pdgId()) == 111 ||
-                      std::abs(gen.pdgId()) == 130 ||
-                      std::abs(gen.pdgId()) == 2112);
+            bool isHSorPrompt =
+//                gen.fromHardProcessFinalState();
+//                gen.isPromptFinalState();
+//                gen.isDirectHardProcessTauDecayProductFinalState();
+                gen.isDirectPromptTauDecayProductFinalState();
 
-           if (!passPDG && debug) std::cout << "[DiagMatch] Neutral PF failed: gen pdgId=" << gen.pdgId()
-                                            << " not in allowed set" << std::endl;
-           } 
-           else {
-            bool passPDG = (std::abs(pf.pdgId()) == std::abs(gen.pdgId()));
-            if (!passPDG&&debug) {
-                 std::cout << "[DiagMatch] Charged PF failed: PF pdgId=" << pf.pdgId()
-                            << " != GEN pdgId=" << gen.pdgId() << std::endl;
+//            bool passPDG = (pf.pdgId() == gen.pdgId());
+            if (!(isHSorPrompt) ) {
+//                if (debug)
+//                    std::cout << "[DiagMatch] Charged PF skip: isHSorPrompt=" << isHSorPrompt
+//                              << ", PDGmatch=" << passPDG
+//                              << " (PF pdgId=" << pf.pdgId()
+//                              << ", GEN pdgId=" << gen.pdgId() << ")\n";
+                continue;
             }
-            if (!passPDG) continue;                    
-          }//End of if (pf.charge() == 0){} else{}
-    // --- (Optional) require same particle type:TOO STRIC ---
-//    if (std::abs(pf.pdgId()) != std::abs(gen.pdgId())) continue;
 
-    // --- ΔR matching ---
-    float dR = reco::deltaR(pf.eta(), pf.phi(), gen.eta(), gen.phi());
-    if (dR > maxDR) {
-        if (debug) std::cout << "[DiagMatch] PF (pt=" << pf.pt()
-                             << ", eta=" << pf.eta() << ") ΔR too large: " << dR << std::endl;
-                            continue;
-    }
+        }//End of if (pf.charge() != 0)
+/*
+        //------------------------------------------------------------------
+        // Neutral PF: require (isLastCopy && PDG in allowed set)
+        //------------------------------------------------------------------
+        else {
+            if (!gen.statusFlags().isLastCopy()) {
+//                if (debug)
+//                    std::cout << "[DiagMatch] Neutral PF skip: GEN not last copy (pdgId="
+//                              << gen.pdgId() << ")\n";
+                continue;
+            }
 
-    //----Update best matich if passes all filters   
-    if (dR < bestDR) {
-      bestDR = dR;
-      bestMatch = &gen;
-      finalbest=true;
-    }
+            bool passPDG = (std::abs(gen.pdgId()) == 22 ||   // photon
+                            std::abs(gen.pdgId()) == 111 ||  // pi0
+                            std::abs(gen.pdgId()) == 130 ||  // K_L
+                            std::abs(gen.pdgId()) == 2112);  // neutron
+//
+            if (!passPDG) {
+//                if (debug)
+//                    std::cout << "[DiagMatch] Neutral PF skip: GEN pdgId="
+//                              << gen.pdgId() << " not in allowed set\n";
+                continue;
+            }
+  
+      }//End of else{}
+*/
+
+        //------------------------------------------------------------------
+        // ΔR condition (same for both charged & neutral)
+        //------------------------------------------------------------------
+        float dR = reco::deltaR(pf.eta(), pf.phi(), gen.eta(), gen.phi());
+        if (dR > maxDR_eff) {
+            if (debug)
+                std::cout << "[DiagMatch] ΔR failed: " << dR
+                          << " > " << maxDR_eff << " (PF pdgId=" << pf.pdgId()
+                          << ", GEN pdgId=" << gen.pdgId() << ")\n";
+            continue;
+        }
+        //------------------------------------------------------------------
+        // Best-match update
+        //------------------------------------------------------------------
+        if (dR < bestDR) {
+            bestDR = dR;
+            bestMatch = &gen;
+//            finalbest = true;
+        }
+
   }//End of for(const auto& gen : genParticles):End of loop over genParticles
-
+/*
   // Static counters (persist across function calls during one job)
-  static unsigned int totalPF_checked = 0;
-  static unsigned int totalPF_matched = 0;
-  static unsigned int totalPF_noMatch = 0;
-  static unsigned int totalPF_pdgMismatch = 0;
-  static unsigned int totalPF_chMismatch    = 0; // charged mismatch
-  static unsigned int totalPF_neuMismatch   = 0; // neutral mismatch
+  static unsigned long long totalPF_checked     = 0ULL;
+  static unsigned long long totalPF_matched     = 0ULL; // dR ok & PDG ok
+  static unsigned long long totalPF_noMatch     = 0ULL; // no gen within dR
+  static unsigned long long totalPF_pdgMismatch = 0ULL; // dR ok but PDG mismatch
+  static unsigned long long totalPF_chMismatch  = 0ULL; // subset of pdgMismatch
+  static unsigned long long totalPF_neuMismatch = 0ULL; // subset of pdgMismatch
   ++totalPF_checked;
 
 //  if (debug) {//DO NOT REMOVE:Toggle Verbosity
    bool isCharged = (pf.charge() != 0);
-
+// Case A: found a gen candidate within dR but PDG mismatch
     if (finalbest&&bestMatch) {
       bool pdgMismatch = (std::abs(pf.pdgId()) != std::abs(bestMatch->pdgId()));
-      std::cout << "[DiagBestMatch] "
+
+      if (pdgMismatch) {
+        ++totalPF_pdgMismatch;
+        if (isCharged) ++totalPF_chMismatch;
+        else ++totalPF_neuMismatch;
+ 
+    std::cout << "[DiagBESTMatch:PDGIdMatchfailed] "
                 << (isCharged ? "CHARGED" : "NEUTRAL")
                 << " PF (pt=" << pf.pt()
                 << ", eta=" << pf.eta()
                 << ", pdgId=" << pf.pdgId()
                 << ") best match: GEN pdgId=" << bestMatch->pdgId()
-                << ", dR=" << bestDR;
+                << ", bestdR=" << bestDR << ")"
+                << "  <-- PDG MISMATCH (" 
+                << (isCharged ? "charged" : "neutral") << ")"
+                << std::endl;
 
-      if (pdgMismatch) {
-        std::cout << "  <-- PDG MISMATCH (" 
-                  << (isCharged ? "charged" : "neutral") << ")";
-
-        ++totalPF_pdgMismatch;
-        if (isCharged) ++totalPF_chMismatch;
-        else ++totalPF_neuMismatch;
+      
       } else {
         ++totalPF_matched;
-      }
-    std::cout << std::endl;
 
-    } else {
-      std::cout << "[DiagBestMatch] "
+        std::cout << "[DiagBESTMatch] "
                 << (isCharged ? "CHARGED" : "NEUTRAL")
                 << " PF (pt=" << pf.pt()
                 << ", eta=" << pf.eta()
                 << ", pdgId=" << pf.pdgId()
-                << ") has NO gen match (bestDR=" << bestDR << ")"
+                << ") best match: GEN pdgId=" << bestMatch->pdgId()
+                << ", bestdR=" << bestDR
                 << std::endl;
-     ++totalPF_noMatch;
+
+      }
+// Case B: no gen match found at all (no candidate within dR:bestMatch is null or finalbest==false)
+
+    } else {
+     ++totalPF_noMatch;//NOMatching:dR
+
+      std::cout << "[DiagBESTMatch:dR_Failed] "
+                << (isCharged ? "CHARGED" : "NEUTRAL")
+                << " PF (pt=" << pf.pt()
+                << ", eta=" << pf.eta()
+                << ", pdgId=" << pf.pdgId()
+//                << ") best match: GEN pdgId=" << DPGIdHolder
+                << ") NO gen within dR (bestDR=" << bestDR << ", lastSeenGENpdg=" << DPGIdHolder << ", dRHolder=" << dRHolder << ")"
+                << std::endl;
+
     }
 
     // --- Print small summary every 100 PF candidates ---
-    if (totalPF_checked % 100 == 0) {
-      float fracMatched    = 100.f * totalPF_matched     / totalPF_checked;
-      float fracNoMatch    = 100.f * totalPF_noMatch     / totalPF_checked;
-      float fracMismatch   = 100.f * totalPF_pdgMismatch / totalPF_checked;
-//      float fracChMis      = 100.f * totalPF_chMismatch  / totalPF_checked;
-//      float fracNeuMis     = 100.f * totalPF_neuMismatch / totalPF_checked;
-      float fracChMis      = 100.f * totalPF_chMismatch  / totalPF_pdgMismatch;
-      float fracNeuMis     = 100.f * totalPF_neuMismatch / totalPF_pdgMismatch;
+    unsigned long long sumThree = totalPF_matched + totalPF_pdgMismatch + totalPF_noMatch;
+    if (sumThree != totalPF_checked) {
+    std::cerr << "[DiagMatchERROR] Counter mismatch! matched + pdgMismatch + noMatch = "
+              << sumThree << " but totalPF_checked = " << totalPF_checked << std::endl;
+    }
+    // Periodic summary (every N PFs) 
+    const unsigned long long SUMMARY_INTERVAL = 50ULL; // change to 1000 if you prefer   
+    if (totalPF_checked % SUMMARY_INTERVAL == 0ULL) {
+      double matchedPct = 100.0 * static_cast<double>(totalPF_matched) / static_cast<double>(totalPF_checked);
+      double noMatchPct = 100.0 * static_cast<double>(totalPF_noMatch) / static_cast<double>(totalPF_checked);
+      double pdgPct     = 100.0 * static_cast<double>(totalPF_pdgMismatch) / static_cast<double>(totalPF_checked);
+         
+ // For charged/neutral PDG-mismatch breakdown:
+    double ch_of_pdg_pct = totalPF_pdgMismatch ? 100.0 * static_cast<double>(totalPF_chMismatch) / static_cast<double>(totalPF_pdgMismatch) : 0.0;
+    double neu_of_pdg_pct = totalPF_pdgMismatch ? 100.0 * static_cast<double>(totalPF_neuMismatch) / static_cast<double>(totalPF_pdgMismatch) : 0.0;
 
-      std::cout << "[DiagMatchSummary] after " << totalPF_checked << " PFs: "
-                << " matched="      << std::fixed << std::setprecision(1) << fracMatched
-                << "%, noMatch="    << fracNoMatch
-                << "%, pdgMismatch="<< fracMismatch
-                << "% (charged="    << fracChMis
-                << "%, neutral="    << fracNeuMis
-                << "%)"
-                << std::endl;
+    double ch_of_total_pct = 100.0 * static_cast<double>(totalPF_chMismatch) / static_cast<double>(totalPF_checked);
+    double neu_of_total_pct = 100.0 * static_cast<double>(totalPF_neuMismatch) / static_cast<double>(totalPF_checked);
+
+    std::cout << std::fixed << std::setprecision(1)
+              << "[DiagMatchSummary] after " << totalPF_checked << " PFs: "
+              << "matched=" << matchedPct << "%, "
+              << "noMatch=" << noMatchPct << "%, "
+              << "pdgMismatch=" << pdgPct << "% "
+              << "(pdgMismatch breakdown: charged=" << ch_of_pdg_pct << "%, neutral=" << neu_of_pdg_pct << "%; "
+              << "charged_of_total=" << ch_of_total_pct << "%, neutral_of_total=" << neu_of_total_pct << "%)"
+              << std::endl;
+
+    // Also print raw counts to avoid ambiguity
+    std::cout << "[DiagMatchCounts] total=" << totalPF_checked
+              << " matched=" << totalPF_matched
+              << " pdgMismatch=" << totalPF_pdgMismatch
+              << " noMatch=" << totalPF_noMatch
+              << " pdgCharged=" << totalPF_chMismatch
+              << " pdgNeutral=" << totalPF_neuMismatch
+              << std::endl;
     }
 //  }//End of if (debug) 
+*/
 
   return std::make_pair(bestMatch, bestDR);  // nullptr if no good match
 }//End of  matchToGen
@@ -1732,7 +1787,7 @@ float best_dR_in_event = 999.f;
         if (iEvent.id().event() < maxEventsToPrint && dbgPFCount < maxPFsToPrintPerEvt) {
           ++dbgPFCount;
 
-          std::cout << "\n[DiagMatchSummary] evt=" << iEvent.id().event()
+          std::cout << "[DiagMatchSummary] evt=" << iEvent.id().event()
                     << " PF[" << iPF << "] pt=" << pf.pt()
                     << " eta=" << pf.eta()
                     << " charge=" << pf.charge()
@@ -1865,6 +1920,24 @@ float best_dR_in_event = 999.f;
       }//End of if (iPF < 5 && iEvent.id().event() < 10)
     }//End of for (size_t iPF = 0; iPF < pfcands->size(); ++iPF)
 
+/*
+//============ End of PF loop - diagnostic summary========================
+
+float frac_matched_all = (nPF_total > 0) ? float(nPF_matched)/nPF_total : 0.f;
+float frac_matched_ch  = (nPF_charged > 0) ? float(nPF_charged_matched)/nPF_charged : 0.f;
+float frac_matched_neu = (nPF_neutral > 0) ? float(nPF_neutral_matched)/nPF_neutral : 0.f;
+
+
+std::cout << std::fixed << std::setprecision(2);
+std::cout << "[DiagPF] Event " << iEvent.id().event()
+          << " | total=" << nPF_total
+          << " matched=(=isHS_truth)" << nPF_matched
+          << " (" << 100*frac_matched_all << "%)"
+          << " | charged=" << nPF_charged << " (" << 100*frac_matched_ch << "% matched)"
+          << " | neutral=" << nPF_neutral << " (" << 100*frac_matched_neu << "% matched)"
+          << std::endl;
+*/
+
     // Event-level fractions
     float frac_algoPU = (nPF_total > 0) ? float(nPF_algoPU) / nPF_total : 0;
     float frac_truthPU = (nPF_total > 0) ? float(nPF_truthPU) / nPF_total : 0;
@@ -1875,7 +1948,7 @@ float best_dR_in_event = 999.f;
               << " nPF=" << nPF_total
               << " algoPU=" << frac_algoPU * 100 << "%"
               << " truthPU=" << frac_truthPU * 100 << "%"
-              << " misAlgo=" << frac_mis * 100 << "%"
+              << " misAlgo(algoPU != truthPU)=" << frac_mis * 100 << "%"
               << std::endl;
 
     // Update global counters
@@ -2146,11 +2219,13 @@ for (const auto& jet : timeJets) {
     jetTimeSig_time_all_.push_back(jetTsig);
 }//End of for (const auto& jet : timeJets)
 
+
 //============ End of PF loop - diagnostic summary========================
 
 float frac_matched_all = (nPF_total > 0) ? float(nPF_matched)/nPF_total : 0.f;
 float frac_matched_ch  = (nPF_charged > 0) ? float(nPF_charged_matched)/nPF_charged : 0.f;
 float frac_matched_neu = (nPF_neutral > 0) ? float(nPF_neutral_matched)/nPF_neutral : 0.f;
+
 
 std::cout << std::fixed << std::setprecision(2);
 std::cout << "[DiagPF] Event " << iEvent.id().event()
@@ -2160,6 +2235,7 @@ std::cout << "[DiagPF] Event " << iEvent.id().event()
           << " | charged=" << nPF_charged << " (" << 100*frac_matched_ch << "% matched)"
           << " | neutral=" << nPF_neutral << " (" << 100*frac_matched_neu << "% matched)"
           << std::endl;
+
 
 //===== Generic std::vector<pat::Jet> Loop Template=====
 auto processJetCollection = [&](const std::vector<pat::Jet>& jetsIn,

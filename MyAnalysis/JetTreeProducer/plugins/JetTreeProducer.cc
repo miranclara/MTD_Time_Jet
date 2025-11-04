@@ -146,30 +146,33 @@ std::pair<const pat::PackedGenParticle*, float> matchToGen(const pat::PackedCand
    //------------------------------------------------------------------
         // Charged PF: require (isHSorPrompt && PDG match)
         //------------------------------------------------------------------
+
         if (pf.charge() != 0) {
 
             bool isHSorPrompt =
-//                gen.fromHardProcessFinalState();
-//                gen.isPromptFinalState();
-//                gen.isDirectHardProcessTauDecayProductFinalState();
+                gen.fromHardProcessFinalState() ||
+                gen.isPromptFinalState()||
+                gen.isDirectHardProcessTauDecayProductFinalState()||
                 gen.isDirectPromptTauDecayProductFinalState();
 
-//            bool passPDG = (pf.pdgId() == gen.pdgId());
-            if (!(isHSorPrompt) ) {
-//                if (debug)
-//                    std::cout << "[DiagMatch] Charged PF skip: isHSorPrompt=" << isHSorPrompt
-//                              << ", PDGmatch=" << passPDG
-//                              << " (PF pdgId=" << pf.pdgId()
-//                              << ", GEN pdgId=" << gen.pdgId() << ")\n";
+            bool passPDG = (pf.pdgId() == gen.pdgId());
+//            if (!(isHSorPrompt) ) {
+//            if (!(passPDG) ) {
+            if (!(isHSorPrompt || passPDG) ) {
+                if (debug)
+                    std::cout << "[DiagMatch] Charged PF skip: isHSorPrompt=" << isHSorPrompt
+                              << ", PDGmatch=" << passPDG
+                              << " (PF pdgId=" << pf.pdgId()
+                              << ", GEN pdgId=" << gen.pdgId() << ")\n";
                 continue;
             }
 
         }//End of if (pf.charge() != 0)
-/*
+
         //------------------------------------------------------------------
         // Neutral PF: require (isLastCopy && PDG in allowed set)
         //------------------------------------------------------------------
-        else {
+       else {
             if (!gen.statusFlags().isLastCopy()) {
 //                if (debug)
 //                    std::cout << "[DiagMatch] Neutral PF skip: GEN not last copy (pdgId="
@@ -188,9 +191,9 @@ std::pair<const pat::PackedGenParticle*, float> matchToGen(const pat::PackedCand
 //                              << gen.pdgId() << " not in allowed set\n";
                 continue;
             }
-  
+ 
       }//End of else{}
-*/
+
 
         //------------------------------------------------------------------
         // ΔR condition (same for both charged & neutral)
@@ -213,6 +216,8 @@ std::pair<const pat::PackedGenParticle*, float> matchToGen(const pat::PackedCand
         }
 
   }//End of for(const auto& gen : genParticles):End of loop over genParticles
+
+
 /*
   // Static counters (persist across function calls during one job)
   static unsigned long long totalPF_checked     = 0ULL;

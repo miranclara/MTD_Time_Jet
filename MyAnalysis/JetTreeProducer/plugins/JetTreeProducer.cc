@@ -123,86 +123,98 @@ inline std::vector<unsigned int> getPFIndicesFromPseudoJet(
 //const pat::PackedGenParticle*    matchToGen(const pat::PackedCandidate& pf,
 std::pair<const pat::PackedGenParticle*, float> matchToGen(const pat::PackedCandidate& pf,
                                          const std::vector<pat::PackedGenParticle>& genParticles,
-                                         float maxDR = 0.4) {//0.05
+                                         float maxDR_charged = 0.1) {//0.05
   const pat::PackedGenParticle* bestMatch = nullptr;
-  float maxDR_charged = 0.4;  // or 0.1, depending on your analysis
-  float maxDR_neutral = 0.8;
+//  float maxDR_charged = 0.4;  // or 0.1, depending on your analysis
+//  float maxDR_neutral = 0.8;
 
-  float maxDR_eff = (pf.charge() == 0) ? maxDR_neutral : maxDR_charged;// loose neutral, tight charged   
-  float bestDR = maxDR_eff;
+//  float maxDR_eff = (pf.charge() == 0) ? maxDR_neutral : maxDR_charged;// loose neutral, tight charged   
+  float bestDR = maxDR_charged;
   bool debug = false;//Debugging Toggle
 //  bool finalbest=false;//Debugging Toggle
 //  float dRHolder=-999;
 //  int DPGIdHolder=-999;
 
+    // --- Only consider charged PF candidates ---
+    if (pf.charge() == 0) {
+        if (debug)
+            std::cout << "[matchToGen] Skipping neutral PF (pt=" << pf.pt()
+                      << ", eta=" << pf.eta() << ")\n";
+        return std::make_pair(nullptr, -1.0f);
+    }
+
     if (genParticles.empty()) {
         std::cout << "[matchToGen] WARNING: genParticles vector is empty! skipping match for PF pt="
                   << pf.pt() << std::endl;
-        return std::make_pair(nullptr, maxDR);
+        return std::make_pair(nullptr, maxDR_charged);
     }
 
+//--- Loop over GEN particles ---
   for (const auto& gen : genParticles) {
 
    //------------------------------------------------------------------
         // Charged PF: require (isHSorPrompt && PDG match)
         //------------------------------------------------------------------
-
-        if (pf.charge() != 0) {
+//        if (pf.charge() != 0) {
 
             bool isHSorPrompt =
-                gen.fromHardProcessFinalState() ||
+//                gen.fromHardProcessFinalState() ||
+//                gen.isDirectPromptTauDecayProductFinalState();
                 gen.isPromptFinalState()||
-                gen.isDirectHardProcessTauDecayProductFinalState()||
-                gen.isDirectPromptTauDecayProductFinalState();
+                gen.isDirectHardProcessTauDecayProductFinalState();
 
-            bool passPDG = (pf.pdgId() == gen.pdgId());
-//            if (!(isHSorPrompt) ) {
-//            if (!(passPDG) ) {
-            if (!(isHSorPrompt || passPDG) ) {
+            if (!isHSorPrompt) {
                 if (debug)
                     std::cout << "[DiagMatch] Charged PF skip: isHSorPrompt=" << isHSorPrompt
-                              << ", PDGmatch=" << passPDG
                               << " (PF pdgId=" << pf.pdgId()
-                              << ", GEN pdgId=" << gen.pdgId() << ")\n";
+                              << ", GEN pdgId=" << gen.pdgId() << ")\n"
+                              << ", pt=" << gen.pt() << ") skipped: not prompt/tau\n";
                 continue;
             }
+            // --- PDG ID consistency (charged only) ---
+//            bool passPDG = (pf.pdgId() == gen.pdgId());
+//            if (std::abs(pf.pdgId()) != std::abs(gen.pdgId())) {
+//              if (debug)
+//                  std::cout << "[matchToGen] PDG mismatch: PF=" << pf.pdgId()
+//                            << ", GEN=" << gen.pdgId() << "\n";
+//              continue;
+//            }
 
-        }//End of if (pf.charge() != 0)
+//        }//End of if (pf.charge() != 0)
 
         //------------------------------------------------------------------
         // Neutral PF: require (isLastCopy && PDG in allowed set)
         //------------------------------------------------------------------
-       else {
-            if (!gen.statusFlags().isLastCopy()) {
+//       else {
+//            if (!gen.statusFlags().isLastCopy()) {
 //                if (debug)
 //                    std::cout << "[DiagMatch] Neutral PF skip: GEN not last copy (pdgId="
 //                              << gen.pdgId() << ")\n";
-                continue;
-            }
+//                continue;
+//            }
 
-            bool passPDG = (std::abs(gen.pdgId()) == 22 ||   // photon
-                            std::abs(gen.pdgId()) == 111 ||  // pi0
-                            std::abs(gen.pdgId()) == 130 ||  // K_L
-                            std::abs(gen.pdgId()) == 2112);  // neutron
+//            bool passPDG = (std::abs(gen.pdgId()) == 22 ||   // photon
+//                            std::abs(gen.pdgId()) == 111 ||  // pi0
+//                            std::abs(gen.pdgId()) == 130 ||  // K_L
+//                            std::abs(gen.pdgId()) == 2112);  // neutron
 //
-            if (!passPDG) {
+//            if (!passPDG) {
 //                if (debug)
 //                    std::cout << "[DiagMatch] Neutral PF skip: GEN pdgId="
 //                              << gen.pdgId() << " not in allowed set\n";
-                continue;
-            }
- 
-      }//End of else{}
+//                continue;
+//            }
+//      }//End of else{}
 
 
         //------------------------------------------------------------------
         // ΔR condition (same for both charged & neutral)
         //------------------------------------------------------------------
         float dR = reco::deltaR(pf.eta(), pf.phi(), gen.eta(), gen.phi());
-        if (dR > maxDR_eff) {
+        if (dR > maxDR_charged) {
             if (debug)
                 std::cout << "[DiagMatch] ΔR failed: " << dR
-                          << " > " << maxDR_eff << " (PF pdgId=" << pf.pdgId()
+                          << " > " << maxDR_charged << " (PF pdgId=" << pf.pdgId()
                           << ", GEN pdgId=" << gen.pdgId() << ")\n";
             continue;
         }
@@ -216,110 +228,13 @@ std::pair<const pat::PackedGenParticle*, float> matchToGen(const pat::PackedCand
         }
 
   }//End of for(const auto& gen : genParticles):End of loop over genParticles
+    if (debug && bestMatch)
+        std::cout << "[matchToGen] ✅ Best match found: GEN pdgId=" << bestMatch->pdgId()
+                  << ", ΔR=" << bestDR << "\n";
 
-
-/*
-  // Static counters (persist across function calls during one job)
-  static unsigned long long totalPF_checked     = 0ULL;
-  static unsigned long long totalPF_matched     = 0ULL; // dR ok & PDG ok
-  static unsigned long long totalPF_noMatch     = 0ULL; // no gen within dR
-  static unsigned long long totalPF_pdgMismatch = 0ULL; // dR ok but PDG mismatch
-  static unsigned long long totalPF_chMismatch  = 0ULL; // subset of pdgMismatch
-  static unsigned long long totalPF_neuMismatch = 0ULL; // subset of pdgMismatch
-  ++totalPF_checked;
-
-//  if (debug) {//DO NOT REMOVE:Toggle Verbosity
-   bool isCharged = (pf.charge() != 0);
-// Case A: found a gen candidate within dR but PDG mismatch
-    if (finalbest&&bestMatch) {
-      bool pdgMismatch = (std::abs(pf.pdgId()) != std::abs(bestMatch->pdgId()));
-
-      if (pdgMismatch) {
-        ++totalPF_pdgMismatch;
-        if (isCharged) ++totalPF_chMismatch;
-        else ++totalPF_neuMismatch;
- 
-    std::cout << "[DiagBESTMatch:PDGIdMatchfailed] "
-                << (isCharged ? "CHARGED" : "NEUTRAL")
-                << " PF (pt=" << pf.pt()
-                << ", eta=" << pf.eta()
-                << ", pdgId=" << pf.pdgId()
-                << ") best match: GEN pdgId=" << bestMatch->pdgId()
-                << ", bestdR=" << bestDR << ")"
-                << "  <-- PDG MISMATCH (" 
-                << (isCharged ? "charged" : "neutral") << ")"
-                << std::endl;
-
-      
-      } else {
-        ++totalPF_matched;
-
-        std::cout << "[DiagBESTMatch] "
-                << (isCharged ? "CHARGED" : "NEUTRAL")
-                << " PF (pt=" << pf.pt()
-                << ", eta=" << pf.eta()
-                << ", pdgId=" << pf.pdgId()
-                << ") best match: GEN pdgId=" << bestMatch->pdgId()
-                << ", bestdR=" << bestDR
-                << std::endl;
-
-      }
-// Case B: no gen match found at all (no candidate within dR:bestMatch is null or finalbest==false)
-
-    } else {
-     ++totalPF_noMatch;//NOMatching:dR
-
-      std::cout << "[DiagBESTMatch:dR_Failed] "
-                << (isCharged ? "CHARGED" : "NEUTRAL")
-                << " PF (pt=" << pf.pt()
-                << ", eta=" << pf.eta()
-                << ", pdgId=" << pf.pdgId()
-//                << ") best match: GEN pdgId=" << DPGIdHolder
-                << ") NO gen within dR (bestDR=" << bestDR << ", lastSeenGENpdg=" << DPGIdHolder << ", dRHolder=" << dRHolder << ")"
-                << std::endl;
-
-    }
-
-    // --- Print small summary every 100 PF candidates ---
-    unsigned long long sumThree = totalPF_matched + totalPF_pdgMismatch + totalPF_noMatch;
-    if (sumThree != totalPF_checked) {
-    std::cerr << "[DiagMatchERROR] Counter mismatch! matched + pdgMismatch + noMatch = "
-              << sumThree << " but totalPF_checked = " << totalPF_checked << std::endl;
-    }
-    // Periodic summary (every N PFs) 
-    const unsigned long long SUMMARY_INTERVAL = 50ULL; // change to 1000 if you prefer   
-    if (totalPF_checked % SUMMARY_INTERVAL == 0ULL) {
-      double matchedPct = 100.0 * static_cast<double>(totalPF_matched) / static_cast<double>(totalPF_checked);
-      double noMatchPct = 100.0 * static_cast<double>(totalPF_noMatch) / static_cast<double>(totalPF_checked);
-      double pdgPct     = 100.0 * static_cast<double>(totalPF_pdgMismatch) / static_cast<double>(totalPF_checked);
-         
- // For charged/neutral PDG-mismatch breakdown:
-    double ch_of_pdg_pct = totalPF_pdgMismatch ? 100.0 * static_cast<double>(totalPF_chMismatch) / static_cast<double>(totalPF_pdgMismatch) : 0.0;
-    double neu_of_pdg_pct = totalPF_pdgMismatch ? 100.0 * static_cast<double>(totalPF_neuMismatch) / static_cast<double>(totalPF_pdgMismatch) : 0.0;
-
-    double ch_of_total_pct = 100.0 * static_cast<double>(totalPF_chMismatch) / static_cast<double>(totalPF_checked);
-    double neu_of_total_pct = 100.0 * static_cast<double>(totalPF_neuMismatch) / static_cast<double>(totalPF_checked);
-
-    std::cout << std::fixed << std::setprecision(1)
-              << "[DiagMatchSummary] after " << totalPF_checked << " PFs: "
-              << "matched=" << matchedPct << "%, "
-              << "noMatch=" << noMatchPct << "%, "
-              << "pdgMismatch=" << pdgPct << "% "
-              << "(pdgMismatch breakdown: charged=" << ch_of_pdg_pct << "%, neutral=" << neu_of_pdg_pct << "%; "
-              << "charged_of_total=" << ch_of_total_pct << "%, neutral_of_total=" << neu_of_total_pct << "%)"
-              << std::endl;
-
-    // Also print raw counts to avoid ambiguity
-    std::cout << "[DiagMatchCounts] total=" << totalPF_checked
-              << " matched=" << totalPF_matched
-              << " pdgMismatch=" << totalPF_pdgMismatch
-              << " noMatch=" << totalPF_noMatch
-              << " pdgCharged=" << totalPF_chMismatch
-              << " pdgNeutral=" << totalPF_neuMismatch
-              << std::endl;
-    }
-//  }//End of if (debug) 
-*/
+    if (debug && !bestMatch)
+        std::cout << "[matchToGen] ❌ No match found for PF pdgId=" << pf.pdgId()
+                  << " (pt=" << pf.pt() << ")\n";
 
   return std::make_pair(bestMatch, bestDR);  // nullptr if no good match
 }//End of  matchToGen
@@ -745,6 +660,9 @@ edm::EDGetTokenT<std::vector<pat::PackedGenParticle>> genParticlesTokenMiniAOD_;
 edm::EDGetTokenT<edm::HepMCProduct> genvertexToken_;                             // generatorSmeared
 edm::EDGetTokenT<GenEventInfoProduct> genEventInfoToken_;                        // generator metadata
 
+//--- PF->GEN mapping ---
+edm::EDGetTokenT<edm::Association<std::vector<reco::GenParticle>>> pfToGenAssocToken_;
+
 
   TTree* tree_;
 
@@ -899,6 +817,20 @@ int nPUJets_time_, nRecoJets_time_;
   std::vector<float> pf_time, pf_timeError, pf_dt, pf_dtErr, pf_dtSig;//For <pat::PackedCandidate> collection
   std::vector<float> pf_vx, pf_vy, pf_vz;
 
+  std::vector<int> pf_genIndex_assoc_;//Index from offical pfToGenAssociation
+  std::vector<float> pf_genPt_assoc_;
+  std::vector<float> pf_genEta_assoc_;
+  std::vector<float> pf_genPhi_assoc_;
+  std::vector<int>   pf_genPdgId_assoc_;
+  std::vector<float> pf_genDR_assoc_;
+
+  std::vector<int> pf_genIndex_custom_;//Index from matchToGe
+  std::vector<float> pf_genPt_custom_;
+  std::vector<float> pf_genEta_custom_;
+  std::vector<float> pf_genPhi_custom_;
+  std::vector<int>   pf_genPdgId_custom_;
+  std::vector<float> pf_genDR_custom_;
+
   std::vector<int> pf_pdgId;
   std::vector<int> pf_fromPV;          // Store fromPV() intege
   std::vector<int> pf_passesTightCut;//was bool
@@ -1002,6 +934,7 @@ genParticlesTokenAOD_     = consumes<std::vector<reco::GenParticle>>(edm::InputT
 genParticlesTokenMiniAOD_ = consumes<std::vector<pat::PackedGenParticle>>(edm::InputTag("packedGenParticles"));
 genvertexToken_           = consumes<edm::HepMCProduct>(edm::InputTag("generatorSmeared"));
 genEventInfoToken_        = consumes<GenEventInfoProduct>(edm::InputTag("generator"));
+pfToGenAssocToken_ = consumes<edm::Association<std::vector<reco::GenParticle>>>(edm::InputTag("packedPFCandidateToGenAssociation"));
 
 
 }//End of JetTreeProducer::JetTreeProducer(const edm::ParameterSet& iConfig)
@@ -1210,6 +1143,21 @@ void JetTreeProducer::beginJob() {
   tree_->Branch("pf_dtErr", &pf_dtErr);
   tree_->Branch("pf_dtSig", &pf_dtSig);
 
+
+  tree_->Branch("pf_genIndex_assoc", &pf_genIndex_assoc_);
+  tree_->Branch("pf_genPt_assoc", &pf_genPt_assoc_);
+  tree_->Branch("pf_genEta_assoc", &pf_genEta_assoc_);
+  tree_->Branch("pf_genPhi_assoc", &pf_genPhi_assoc_);
+  tree_->Branch("pf_genPdgId_assoc", &pf_genPdgId_assoc_);
+  tree_->Branch("pf_genDR_assoc", &pf_genDR_assoc_);
+
+  tree_->Branch("pf_genIndex_custom", &pf_genIndex_custom_);
+  tree_->Branch("pf_genPt_custom", &pf_genPt_custom_);
+  tree_->Branch("pf_genEta_custom", &pf_genEta_custom_);
+  tree_->Branch("pf_genPhi_custom", &pf_genPhi_custom_);
+  tree_->Branch("pf_genPdgId_custom", &pf_genPdgId_custom_);
+  tree_->Branch("pf_genDR_custom", &pf_genDR_custom_);
+
   tree_->Branch("pf_isInMTD", &pf_isInMTD);
   tree_->Branch("pf_isCharged", &pf_isCharged);
   tree_->Branch("pf_hasValidTime", &pf_hasValidTime);
@@ -1374,6 +1322,19 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   pf_dR_truth_.clear();//test
   //best_dR_in_event.clear();//test
 
+  pf_genIndex_assoc_.clear();
+  pf_genPt_assoc_.clear();//PF->GEN association Info.
+  pf_genEta_assoc_.clear();//PF->GEN association Info.
+  pf_genPhi_assoc_.clear();//PF->GEN association Info.
+  pf_genPdgId_assoc_.clear();//PF->GEN association Info.
+  pf_genDR_assoc_.clear();//PF->GEN association Info.
+
+  pf_genIndex_custom_.clear();
+  pf_genPt_custom_.clear();
+  pf_genEta_custom_.clear();
+  pf_genPhi_custom_.clear();
+  pf_genPdgId_custom_.clear();
+  pf_genDR_custom_.clear();
 
   pf_isHS.clear();
   pf_fromPV.clear();
@@ -1555,6 +1516,14 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
     edm::LogError("JetTreeProducer") << "Missing input: genJetsToken";
   }
 
+ //PF->GEN association
+  edm::Handle<edm::Association<std::vector<reco::GenParticle>>> pfToGenAssoc;
+  iEvent.getByToken(pfToGenAssocToken_, pfToGenAssoc);
+    if (!pfToGenAssoc.isValid()) {
+//      edm::LogError("JetTreeProducer") << "Missing input: pfToGenAssocToken";
+      edm::LogWarning("JetTreeProducer") << "packedPFCandidateToGenAssociation not found!";
+    return;
+    }
 
 // -------------------------
 // ✅ ADDED SAFEGUARDS: genJets validity check
@@ -1773,16 +1742,72 @@ float best_dR_in_event = 999.f;
     // PV-consistency check is already enforced inside matchToGen,
     // so no extra vz cut is needed here.
 
+   //(1). Official CMS association(pfToGenAssoc):Official mapping of CMS
+    // --- get associated GEN particle ---
+    int official_gen_index = -1;
+//    reco::GenParticleRef genRef = (*pfToGenAssoc)[pf];
+      edm::Ref<std::vector<pat::PackedCandidate>> pfRef(pfColl_handle, iPF);
+      reco::GenParticleRef genRef = (*pfToGenAssoc)[pfRef];
+
+      if (genRef.isNonnull() && genRef.isAvailable()) {
+//             const reco::GenParticle& gen = *genRef;
+             const auto& gen = *genRef;
+             float dR = reco::deltaR(pf.eta(), pf.phi(), gen.eta(), gen.phi());
+
+          // optional: store to vectors
+          pf_genPt_assoc_.push_back(gen.pt());
+          pf_genEta_assoc_.push_back(gen.eta());
+          pf_genPhi_assoc_.push_back(gen.phi());
+          pf_genPdgId_assoc_.push_back(gen.pdgId());
+          pf_genDR_assoc_.push_back(dR);
+          official_gen_index = genRef.key();//The index in the official genParticles collection used inside CMS PF → GEN association
+      } else {
+  
+          // store default “no match” values
+          pf_genPt_assoc_.push_back(-1.f);
+          pf_genEta_assoc_.push_back(-99.f);
+          pf_genPhi_assoc_.push_back(-99.f);
+          pf_genPdgId_assoc_.push_back(0);
+          pf_genDR_assoc_.push_back(-1.f);
+          official_gen_index = -1;
+      }
+      pf_genIndex_assoc_.push_back(official_gen_index);
+    // ---END: get associated GEN particle ---
+ 
+ 
       //New Test         
       // Safe truth-match: only attempt if gen collection is present (genpVec non-empty)
+      int custom_gen_index = -1;
       const pat::PackedGenParticle* matchedGen = nullptr;
       float dR_value = -1.f;
 
+     // (2) Compute my oown custom match(matchToGen) for comparison
       if (!genpVec.empty()) {
-      auto matchResult = matchToGen(pf, genpVec,(pf.charge() == 0 ? 1.0 : 0.4));
+//      auto matchResult = matchToGen(pf, genpVec,(pf.charge() == 0 ? 1.0 : 0.4));
+      auto matchResult = matchToGen(pf, genpVec, 0.1);
       matchedGen = matchResult.first;
       dR_value   = matchResult.second;
-  
+      if (matchedGen) {
+
+          pf_genPt_custom_.push_back(matchedGen->pt());
+          pf_genEta_custom_.push_back(matchedGen->eta());
+          pf_genPhi_custom_.push_back(matchedGen->phi());
+          pf_genPdgId_custom_.push_back(matchedGen->pdgId());
+          pf_genDR_custom_.push_back(dR_value);
+          // ---- compute index inside genpVec ----
+          custom_gen_index = matchedGen - &genpVec[0];  // genVec Index saving
+
+    } else {
+          pf_genPt_custom_.push_back(-1.f);
+          pf_genEta_custom_.push_back(-99.f);
+          pf_genPhi_custom_.push_back(-99.f);
+          pf_genPdgId_custom_.push_back(0);
+          pf_genDR_custom_.push_back(-1.f);
+          custom_gen_index = -1;
+
+    }//End of if (matchedGen){}else{}
+    
+
   // === Diagnostic: show gen candidates and cut-flow per PF ===
       #ifdef DEBUG_MATCH_DETAIL
         static int dbgEventCount = 0;
@@ -1840,7 +1865,7 @@ float best_dR_in_event = 999.f;
                       << " isLastCopy=" << isLastCopy
                       << std::endl;
             ++idx;
-          }
+          }//End of for (const auto &gen : genpVec)
 
           std::cout << "[CutFlow] total=" << n_before
                     << " passFlag=" << n_passFlag
@@ -1848,7 +1873,7 @@ float best_dR_in_event = 999.f;
                     << " passFlag+DR+PDG=" << n_passPDG
                     << " bestLocalDR=" << bestLocalDR
                     << std::endl;
-         }
+         }//End of if (iEvent.id().event() < maxEventsToPrint && dbgPFCount < maxPFsToPrintPerEvt)
    #endif // DEBUG_MATCH_DETAIL
   // === End of diagnostic block ===
     
@@ -1856,7 +1881,17 @@ float best_dR_in_event = 999.f;
       // no gen collection
       edm::LogWarning("JetTreeProducer") << "No packedGenParticles found in this event.";
       dR_value = -99.f;
-      }
+       // if genpVec empty, no match possible
+        pf_genPt_custom_.push_back(-1.f);
+        pf_genEta_custom_.push_back(-99.f);
+        pf_genPhi_custom_.push_back(-99.f);
+        pf_genPdgId_custom_.push_back(0);
+        pf_genDR_custom_.push_back(-1.f);//-99f?
+        custom_gen_index = -1;
+      }//if (!genpVec.empty())
+    
+    // push the gen index
+    pf_genIndex_custom_.push_back(custom_gen_index);
 
     bool isHS_truth = (matchedGen != nullptr);
     pf_isPU_truth.push_back(!isHS_truth);
@@ -1868,7 +1903,7 @@ float best_dR_in_event = 999.f;
     else nPF_neutral_matched++;
     } else {
       nPF_unmatched++;
-    }
+    }//End of if (isHS_truth)
     
     //-----mindR of PF-Gen  ------ 
     if (matchedGen && dR_value >= 0.f) {

@@ -253,11 +253,78 @@ inline float computeResponse(const fastjet::PseudoJet& fjJet,
 }
 
 
+// ======================================================================
+// Publication-level weighted vz for GenJet
+//  - Uses packedGenParticles (status==1) within ΔR < 0.25
+//  - Uses charged-only particles (charge!=0)
+//  - Weights by pT (optionally by pT^2: uncomment)
+//  - Removes PU/displaced by requiring |vz - median(vz)| < 0.3 cm
+// ======================================================================
+inline double weightedGenJetVz(
+    const reco::GenJet &g,
+    const std::vector<pat::PackedGenParticle> &pgVec,
+    double dRmax = 0.25)
+{
+    std::vector<double> vzList;
+    std::vector<double> wList;
+
+    // 1) collect constituents around genJet axis
+    for (const auto &pg : pgVec) {
+        if (pg.status() != 1) continue;
+        if (pg.charge() == 0) continue;            // charged-only
+        if (pg.pt() < 0.3) continue;               // avoid noisy pt
+
+        double dr = reco::deltaR(g.eta(), g.phi(), pg.eta(), pg.phi());
+        if (dr > dRmax) continue;
+
+        vzList.push_back(pg.vz());
+        wList.push_back(pg.pt());                  // pT weight
+
+        // If you prefer pT^2 weight:
+        // wList.push_back(pg.pt() * pg.pt());
+    }
+
+    if (vzList.empty()) {
+        // fallback to genJet vz
+        double vz = g.vz();
+        if (std::abs(vz) < 1000.) return vz;
+        return 1e6;
+    }
+
+    // 2) compute median vz (robust center)
+    std::vector<double> vzCopy = vzList;
+    std::sort(vzCopy.begin(), vzCopy.end());
+    double medianVz = vzCopy[vzCopy.size() / 2];
+
+    // 3) remove outliers more than 0.3 cm from median
+    std::vector<double> vzClean;
+    std::vector<double> wClean;
+
+    for (size_t i = 0; i < vzList.size(); ++i) {
+        if (std::abs(vzList[i] - medianVz) < 0.30) {
+            vzClean.push_back(vzList[i]);
+            wClean.push_back(wList[i]);
+        }
+    }
+
+    if (vzClean.empty()) return medianVz;    // fallback
+
+    // 4) weighted average
+    double sumW = 0.0, sumVz = 0.0;
+    for (size_t i = 0; i < vzClean.size(); ++i) {
+        sumW  += wClean[i];
+        sumVz += wClean[i] * vzClean[i];
+    }
+
+    if (sumW == 0.0) return medianVz;
+    return sumVz / sumW;
+}//End of inline double weightedGenJetVz
 
   // Return best gen-jet match that passes both ΔR and pt cuts (or nullptr)
   inline const reco::GenJet* //returns a pointer to the best-matching gen jet (or nullptr if no match).
   bestGenMatch(const reco::Jet& j,
              const std::vector<reco::GenJet>& gens,
+             const std::vector<pat::PackedGenParticle>& packedGen,
              double dRMax,
              double minGenPt,
              double maxDz,          // NEW: max allowed |vz - genvertex_z|
@@ -289,25 +356,30 @@ inline float computeResponse(const fastjet::PseudoJet& fjJet,
 //      if (std::abs(g.vz() - genvertex_z) > maxDz) continue;
           
        // ---TEST: more robust dz filter ---//
-    double vzGen = 0.0;
-    bool hasVz = (std::abs(g.vz()) > 1e-3);
+//    double vzGen = 0.0;
+//    bool hasVz = (std::abs(g.vz()) > 1e-3);
     
-    if (!g.getJetConstituents().empty()){
-      const auto& firstPtr = g.getJetConstituents().at(0);
-      if (firstPtr.isNull()) {
-          edm::LogWarning("JetTreeProducer")
-              << "GenJet first constituent Ptr is null; cannot read vz. Using default.";
-      } else if (!firstPtr.isAvailable()) {
-          edm::LogWarning("JetTreeProducer")
-              << "GenJet first constituent Ptr product not available; cannot read vz. Using default.";
-      } else {
-          vzGen = firstPtr->vz();
-      }
-    }    
-    else
-        vzGen = g.vz();
-    if (hasVz && maxDz < 900.0 && std::abs(vzGen - genvertex_z) > maxDz)
-        continue;      
+//    if (!g.getJetConstituents().empty()){
+//      const auto& firstPtr = g.getJetConstituents().at(0);
+//      if (firstPtr.isNull()) {
+//          edm::LogWarning("JetTreeProducer")
+//              << "GenJet first constituent Ptr is null; cannot read vz. Using default.";
+//      } else if (!firstPtr.isAvailable()) {
+//          edm::LogWarning("JetTreeProducer")
+//              << "GenJet first constituent Ptr product not available; cannot read vz. Using default.";
+//      } else {
+//          vzGen = firstPtr->vz();
+//      }
+//    }    
+//    else
+//        vzGen = g.vz();
+//    if (hasVz && maxDz < 900.0 && std::abs(vzGen - genvertex_z) > maxDz)
+//
+//        continue;   
+      // ---NEW TEST: more robust dz filter ---//        
+      double vzGen = weightedGenJetVz(g, packedGen);
+      if (std::abs(vzGen - genvertex_z) > maxDz) continue;
+            
        //---TEST:For GenJet verification---//       
 
       const double dR = reco::deltaR(eta, phi, g.eta(), g.phi());//Compute ΔR
@@ -323,9 +395,11 @@ inline float computeResponse(const fastjet::PseudoJet& fjJet,
     return best;
   }//End of inline const reco::GenJet*  bestGenMatc()
 
+
   inline const reco::GenJet* //returns a pointer to the best-matching gen jet (or nullptr if no match).
   bestGenMatch(const fastjet::PseudoJet& j,
              const std::vector<reco::GenJet>& gens,
+             const std::vector<pat::PackedGenParticle>& packedGen,
              double dRMax,
              double minGenPt,
              double maxDz,
@@ -343,7 +417,10 @@ inline float computeResponse(const fastjet::PseudoJet& fjJet,
     for (size_t i = 0; i < gens.size(); ++i) {//Loop over all gen jets.
       const auto& g = gens[i];
       if (g.pt() <= minGenPt) continue;//Skip too-soft ones (g.pt() <= minGenPt).
-      if (std::abs(g.vz() - genvertex_z) > maxDz) continue;
+//      if (std::abs(g.vz() - genvertex_z) > maxDz) continue;
+      // === publication-level weighted vz for genJet ===
+      double vzGen = weightedGenJetVz(g, packedGen);
+      if (std::abs(vzGen - genvertex_z) > maxDz) continue;
 
       const double dR = reco::deltaR(eta, phi, g.eta(), g.phi());//Compute ΔR
       if (dR < dRMax && dR < bestDR) {//Keep the closest match within dRMax.
@@ -370,7 +447,8 @@ inline float computeResponse(const fastjet::PseudoJet& fjJet,
   inline JetTruthMatch
   classifyJetHS(const reco::Jet& j,//the reco jet.
                 const std::vector<reco::GenJet>& gens,//the gen jets.
-                double dRMax,//threshold
+                const std::vector<pat::PackedGenParticle>& packedGen,
+                double dRMax,
                 double minGenPt,//threshold
                 double maxDz,          // loose PV consistency window
                 double genvertex_z_)    //generator PV z position
@@ -392,7 +470,7 @@ inline float computeResponse(const fastjet::PseudoJet& fjJet,
     double dR = -1.0;
     int idx = -1;
 
-    const reco::GenJet* g = bestGenMatch(j, gens, dRMax, minGenPt, maxDz, genvertex_z_, &dR, &idx);
+    const reco::GenJet* g = bestGenMatch(j, gens,packedGen, dRMax, minGenPt, maxDz, genvertex_z_, &dR, &idx);
 //    const reco::GenJet* g = bestGenMatch(j, gens, dRMax, minGenPt, &dR, &idx);//It calls bestGenMatch(), gets the pointer,ΔR,and index.
     out.isHS     = (g != nullptr);//only true if match exists AND passed PV cut
     out.dR       = static_cast<float>(dR);//best ΔR or -1.
@@ -405,6 +483,7 @@ inline float computeResponse(const fastjet::PseudoJet& fjJet,
   inline JetTruthMatch
   classifyJetHS(const fastjet::PseudoJet& j,//the PseudoJet.
                 const std::vector<reco::GenJet>& gens,//the gen jets.
+                const std::vector<pat::PackedGenParticle>& packedGen,
                 double dRMax,//threshold
                 double minGenPt,//threshold
                 double maxDz,
@@ -413,7 +492,7 @@ inline float computeResponse(const fastjet::PseudoJet& fjJet,
     double dR = -1.0;
     int idx = -1;
 
-    const reco::GenJet* g = bestGenMatch(j, gens, dRMax, minGenPt, maxDz, genvertex_z_, &dR, &idx);
+    const reco::GenJet* g = bestGenMatch(j, gens,packedGen, dRMax, minGenPt, maxDz, genvertex_z_, &dR, &idx);
 //    const reco::GenJet* g = bestGenMatch(j, gens, dRMax, minGenPt, &dR, &idx);//It calls bestGenMatch(), gets the pointer,ΔR,and index.
     JetTruthMatch out;//It builds a JetTruthMatch out strut
     out.isHS     = (g != nullptr);//only true if match exists AND passed PV cut
@@ -1680,6 +1759,10 @@ bool hasGenZ = (genvertex_source != "fallback_zero");
   edm::Handle<std::vector<pat::PackedGenParticle>> genpHandle;
   iEvent.getByToken(genParticlesTokenMiniAOD_, genpHandle);
 
+ // Convert Handle → Reference (NECESSARY for weighted vz)
+  const std::vector<pat::PackedGenParticle>& packedGenParticles = *genpHandle;
+
+
   // Provide a safe reference (fallback to empty container if not present)
   static const std::vector<pat::PackedGenParticle> emptyGen; // static avoids realloc each event
   const std::vector<pat::PackedGenParticle>& genpVec =
@@ -2408,7 +2491,7 @@ auto processJetCollection = [&](const std::vector<pat::Jet>& jetsIn,
          pf_indices_general_all_.push_back(pf_indices_this_jet);
 
         // Jet ↔ GenJet matching/ classificaiton
-        auto  truthMatch = classifyJetHS(jet, genJets,
+        auto  truthMatch = classifyJetHS(jet, genJets,packedGenParticles,
                                 0.3,        // dRMax, 0.3
                                 10.0,       // minGenPt 10
                                 0.3,        // maxDz (loose PV cut)0.3
@@ -2552,7 +2635,7 @@ auto processFastJetCollection = [&](const std::vector<fastjet::PseudoJet>& jetsI
         auto pf_indices_this_jet = getPFIndicesFromPseudoJet(jet, pf_for_allCollections);
         pf_indices_general_all_.push_back(pf_indices_this_jet);
 
-        auto truthMatch = classifyJetHS(jet, genJets,
+        auto truthMatch = classifyJetHS(jet, genJets,packedGenParticles,
                                 0.3,        // dRMax
                                 10.0,       // minGenPt
                                 0.3,        // maxDz (loose PV cut)

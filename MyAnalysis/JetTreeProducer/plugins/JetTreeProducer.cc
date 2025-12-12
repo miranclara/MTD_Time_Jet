@@ -280,7 +280,7 @@ inline double weightedGenJetVz(
         vzList.push_back(pg.vz());
         wList.push_back(pg.pt());                  // pT weight
 
-        // If you prefer pT^2 weight:
+        //In case prefer pT^2 weight:
         // wList.push_back(pg.pt() * pg.pt());
     }
 
@@ -437,7 +437,7 @@ inline double weightedGenJetVz(
 
   struct JetTruthMatch {//Just a container (like a small record) to hold matching results.
     bool   isHS=false;//whether the jet is a "hard-scatter" jet (true if matched to a gen jet).
-    float  dR=-1.0;//ΔR distance to the matched gen jet (or -1 if none).
+    float  dR=-1.0;//ΔR distance to the matched gen-jet (or -1 if none).
     float  genPt=-1.0;//matched gen jet’s pT (or -1).
     int    genIndex=-1;//index in the gens vector (or -1).
     const reco::GenJet* matchedGen=nullptr; 
@@ -1462,9 +1462,9 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   pf_isCharged.clear();
   pf_hasValidTime.clear();
 
-  jetTimeSig_time_all_.clear();
-  jetTime_time_all_.clear();
-  jetTimeError_time_all_.clear();
+  //jetTime_time_all_.clear();
+ // jetTimeError_time_all_.clear();
+ // jetTimeSig_time_all_.clear();
  
 
   pf_indices_general_all_.clear();
@@ -1685,7 +1685,6 @@ if (genJetsHandle->empty()) {
 // --- Create a reference to the vector ---
 const auto& genJets = *genJetsHandle;// ✅ This gives you const std::vector<reco::GenJet>&  
   
-
 // Retrieve primary vertex collection
   std::vector<reco::Vertex> reco_pvs;
   edm::Handle<std::vector<reco::Vertex>> pv_handle;
@@ -1783,14 +1782,14 @@ bool hasGenZ = (genvertex_source != "fallback_zero");
   std::vector<const pat::PackedCandidate*> pf_for_time;
   std::vector<const pat::PackedCandidate*> pf_for_allCollections;
   pf_for_allCollections.reserve(pf_coll.size());
- 
+  pf_for_time.reserve(pf_coll.size()); 
   
   fjInputs_raw.clear();
   fjInputs_fromPV3.clear();
   fjInputs_tight.clear();
   fjInputs_loose.clear();
   fjInputs_time.clear();
-
+  pf_for_time.clear();
 
   PUContentReco puContentAlgo;
   PFTruthContentReco puContentTruth;
@@ -1930,7 +1929,7 @@ float best_dR_in_event = 999.f;
       bool isHS_truth = false;
       bool isPU_truth = false;
 //      auto matchResult = matchToGen(pf, genpVec,(pf.charge() == 0 ? 1.0 : 0.4));//Neutral:Chaged
-      auto matchResult = matchToGen(pf, genpVec, 0.3);
+      auto matchResult = matchToGen(pf, genpVec, 0.3);//0.3=maxD
       matchedGen = matchResult.first;
       dR_value   = matchResult.second;
       pf_dR_custom_.push_back(matchedGen ? dR_value : -1.f); 
@@ -2205,17 +2204,20 @@ std::cout << "[DiagPF] Event " << iEvent.id().event()
       hasValidTime = (
           isInMTD &&        //Ensures only trust time info(in MTD acceptance)
           tErr > 0 &&
-          tErr < 0.2 &&     // Conservative threshold (30â50 ps typical)
-          std::abs(t) <10  // sanity check: time should be < 10 ns, change from 100 to 10=>Selection result not changed. 
+          tErr < 0.20f      // Conservative threshold (30â50 ps typical)
+      //    std::abs(t) <10  // sanity check: time should be < 10 ns, change from 100 to 10=>Selection result not changed, 10= 10,000 ps.
       );
       pf_hasValidTime.push_back(hasValidTime ? 1 : 0);//
      
-
+        float dt = 999;
+        float dtErr = 999;
+        float dtSig = 999;//
+       
       if (hasValidTime) {
-      //Safe to use time
-        float dt = t - pvs_t_;
-        float dtErr =std::sqrt( tErr*tErr + pvs_TimeErr_*pvs_TimeErr_ );
-        float dtSig = dt / std::sqrt(tErr*tErr + pvs_TimeErr_*pvs_TimeErr_);//
+      //Safe to use time:MTD time resolution ≈ 30–40 picoseconds = 0.03–0.04 nanoseconds.
+        dt = t - pvs_t_;//convert ns → ps=dt * 1000.0;
+        dtErr =std::sqrt( tErr*tErr + pvs_TimeErr_*pvs_TimeErr_ );
+        dtSig = std::abs(dt) / std::sqrt(tErr*tErr + pvs_TimeErr_*pvs_TimeErr_);//
 
         pf_time.push_back(pf.time());
         pf_timeError.push_back(pf.timeError());
@@ -2250,9 +2252,9 @@ std::cout << "[DiagPF] Event " << iEvent.id().event()
       bool passesTightCut = (std::abs(dz) < 0.03 && dzSig < 0.2);//3D tight selection
       bool passesLooseCut = (std::abs(dz) < 0.05 && dzSig < 0.5);//3D loos selection
       bool keepDisplaced = (isDisplaced && hasValidTime);//4D selection
-      bool hasTimeCompatibleWithPV= hasValidTime && (std::abs(dtSig) < dtSigCut);
+      bool hasTimeCompatibleWithPV= hasValidTime && (std::abs(dtSig) < dtSigCut);//dtSigCut = 3.0f
       bool passes3D = (std::abs(dz) < dzCut) && (std::abs(dzSig) < dzSigCut);
-      bool passes4D = passes3D && hasValidTime && (std::abs(dtSig) < dtSigCut);      
+      bool passes4D = passes3D && hasValidTime && (std::abs(dtSig) < dtSigCut);//dtSigCut = 3.0f;      
 
       pf_passesTightCut.push_back(passesTightCut ? 1 : 0);
       pf_passesLooseCut.push_back(passesLooseCut ? 1 : 0);
@@ -2262,8 +2264,18 @@ std::cout << "[DiagPF] Event " << iEvent.id().event()
       pf_passes3D.push_back(passesLooseCut ? 1 : 0);
       pf_passes4D.push_back(passesLooseCut ? 1 : 0);
 
+      if (!hasTimeCompatibleWithPV) {
+          edm::LogPrint("TimeDebug") 
+              << "PF " << iPF 
+              << " rejected: time=" << pf.time() 
+              << " terr=" << pf.timeError() 
+              << " eta=" << pf.eta();
+       } else {
+          edm::LogPrint("TimeDebug") 
+              << "PF " << iPF << " accepted for time jets.";
+      }
 
-      if (keepAlways) {
+      if (keepAlways) {// const bool keepAlways = (fromPV == 3);
 //      if (keepAlways&&hasValidTime && (std::abs(dtSig) < dtSigCut)) {//To save track has large dz,4D selection
         fjInputs_fromPV3.push_back(pj);
         ++N_selected_fromPV3;
@@ -2285,7 +2297,7 @@ std::cout << "[DiagPF] Event " << iEvent.id().event()
         // MTD-based selection
 //      if (pf.isTimeValid() && pf.timeError() < 0.05) {//pat::PackedCandidate does not have a method called .isTimeValid()
 //      if (hasValidTime) {
-      if (hasTimeCompatibleWithPV) {
+      if (hasTimeCompatibleWithPV) {//PV compatibility should be assessed at jet level, not PF level.
 
       // create a local copy if it need separate UserInfo, but keep the same index
 //        pj_time.set_user_index(pf_for_time.size());//local index bug
@@ -2321,6 +2333,7 @@ std::cout << "[DiagPF] Event " << iEvent.id().event()
     }//End of if (hasValidTime) else 
     //outside the MTD geometry &seem to have time info:Indicate a reconstruction or simulation artifact.
     ++pf_coll_index;
+
   }//End of for (const auto& pf : pf_coll), End of PF Loop:
 
 if (best_dR_in_event == 999.f)
@@ -2350,7 +2363,7 @@ edm::LogVerbatim("JetTreeProducer")
 // Run the jet clustering algorithm on each collection
   fastjet::JetDefinition jetDef(fastjet::antikt_algorithm, 0.4);
   auto cs_raw = fastjet::ClusterSequence(fjInputs_raw, jetDef);
-  auto pfrawJets = fastjet::sorted_by_pt(cs_raw.inclusive_jets(10.0));//eturn only jets with pt ≥ 20 GeV.
+  auto pfrawJets = fastjet::sorted_by_pt(cs_raw.inclusive_jets(10.0));//eturn only jets with pt ≥ 10 GeV.
   
   auto cs_fromPV3= fastjet::ClusterSequence(fjInputs_fromPV3, jetDef);
   auto fromPV3Jets = fastjet::sorted_by_pt(cs_fromPV3.inclusive_jets(10.0));
@@ -2364,8 +2377,8 @@ edm::LogVerbatim("JetTreeProducer")
   auto cs_time = fastjet::ClusterSequence(fjInputs_time, jetDef);
   auto timeJets = fastjet::sorted_by_pt(cs_time.inclusive_jets(10.0));
 
-
-  // diagnostic: check user_index min/max for each fjInputs_* before clustering
+ 
+// diagnostic: check user_index min/max for each fjInputs_* before clustering
   auto diag_index_range = [](const std::vector<fastjet::PseudoJet>& v, const char* name){
     if(v.empty()){
       edm::LogInfo("JetTreeProducer") << name << " empty";
@@ -2392,34 +2405,53 @@ edm::LogVerbatim("JetTreeProducer")
 //Computes per-jet timing observables using the MTD (Minimum Timing Detector) information stored in the PF candidates
 //Jets from the hard scatter should have times consistent with the PV (jetTsig ≈ 0).
 //Pileup jets can have displaced times (jetTsig large)
+  jetTime_time_all_.clear();
+  jetTimeError_time_all_.clear();
+  jetTimeSig_time_all_.clear();
+  edm::LogPrint("TimeDebug") 
+      << "fjInputs_time size = " << fjInputs_time.size();
+
+//============= UPDATED JET-TIME ALGORITHM =============//
 for (const auto& jet : timeJets) {
-    float sumPt = 0, sumWeightedT = 0, sumVar = 0;
+
+    float wSum = 0.0f;         // Σ (1/σ_t^2)
+    float wtSum = 0.0f;        // Σ (t/σ_t^2)
+    float t_jet = -999.f;
+    float tErr_jet = -999.f;
+    float tSig_jet = -999.f;
+
     for (const auto& c : jet.constituents()) {
-        int idx = c.user_index();//c is a fastjet PseudoJet,c.user_index() gives you back the index of the original PF candidate.
+
+        int idx = c.user_index();
         if (idx < 0 || (size_t)idx >= pf_for_time.size()) continue;
+
         const auto* pf = pf_for_time[idx];
-
         if (!pf) continue;
-        //Only keep PFs with valid timing
-        if (pf->timeError() <= 0 || pf->timeError() > 0.2) continue;//reject bad timing resolution
 
-        // Weight = PF transverse momentum
-        float w = pf->pt();
-        sumPt += w;//Σ (pT)
-        sumWeightedT += w * pf->time();//Σ (pT × time)
-        sumVar += w*w * (pf->timeError()*pf->timeError());//Σ (pT² × σ_time²)
+        const float t    = pf->time();
+        const float tErr = pf->timeError();
+
+        // Valid MTD time
+        if (tErr <= 0.f || tErr >= 0.2f) continue;
+
+        // Weight = 1 / σ²
+        const float w = 1.f / (tErr * tErr);
+
+        wSum  += w;
+        wtSum += w * t;
     }
-    // Jet time significance: distance from PV time in units of error
-    float jetT = (sumPt>0) ? sumWeightedT/sumPt : -999;// weighted jet time
-    float jetTerr = (sumPt>0) ? std::sqrt(sumVar)/sumPt : 999;//uncertainty on jet time,estimated error
-    // Jet time significance=distance between jet time and primary vertex time
-    float jetTsig = (jetTerr>0) ? fabs(jetT - pvs_t_)/jetTerr : 999;
 
-    // Save
-    jetTime_time_all_.push_back(jetT);
-    jetTimeError_time_all_.push_back(jetTerr);
-    jetTimeSig_time_all_.push_back(jetTsig);
-}//End of for (const auto& jet : timeJets)
+    if (wSum > 0.f) {
+        t_jet    = wtSum / wSum;
+        tErr_jet = std::sqrt(1.f / wSum);
+        tSig_jet = (tErr_jet > 0) ? std::abs(t_jet - pvs_t_) / tErr_jet : -999.f;
+    }
+
+    jetTime_time_all_.push_back(t_jet);
+    jetTimeError_time_all_.push_back(tErr_jet);
+    jetTimeSig_time_all_.push_back(tSig_jet);
+}//for (const auto& jet : timeJets) 
+//=========================== END UPDATED BLOCK ==============================//
 
 
 //============ End of PF loop - diagnostic summary========================
@@ -2494,7 +2526,7 @@ auto processJetCollection = [&](const std::vector<pat::Jet>& jetsIn,
         auto  truthMatch = classifyJetHS(jet, genJets,packedGenParticles,
                                 0.3,        // dRMax, 0.3
                                 10.0,       // minGenPt 10
-                                0.3,        // maxDz (loose PV cut)0.3
+                                0.2,        // maxDz (loose PV cut)0.3
                                 genvertex_z_);  // generator PV
 
          const reco::GenJet* matchedGenJet = truthMatch.matchedGen;          
@@ -2638,7 +2670,7 @@ auto processFastJetCollection = [&](const std::vector<fastjet::PseudoJet>& jetsI
         auto truthMatch = classifyJetHS(jet, genJets,packedGenParticles,
                                 0.3,        // dRMax
                                 10.0,       // minGenPt
-                                0.3,        // maxDz (loose PV cut)
+                                0.2,        // maxDz (loose PV cut)
                                 genvertex_z_);  // generator PV
          const reco::GenJet* matchedGenJet = truthMatch.matchedGen;      
      
@@ -2888,7 +2920,6 @@ void JetTreeProducer::endJob() {
   //  tree_->Write();
   //  file_->Close();
 }
-
 
 //void JetTreeProducer::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
 //  edm::ParameterSetDescription desc;

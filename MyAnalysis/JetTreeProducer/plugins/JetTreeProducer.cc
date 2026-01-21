@@ -1845,6 +1845,8 @@ float best_dR_in_event = 999.f;
     bool isDisplaced = false;//To keep displaced tracks
     bool hasValidTime = false;
     bool hasTimingInfo = false;
+    bool pvHasValidTime = false;
+    bool hasValidDt = false;
 
     //Diagnostic print of associatedPVIndex
     int pvIndex = pf.vertexRef().key();
@@ -2215,30 +2217,49 @@ std::cout << "[DiagPF] Event " << iEvent.id().event()
           tErr < 0.20f      // Conservative threshold (30â50 ps typical)
       //    std::abs(t) <10  // sanity check: time should be < 10 ns, change from 100 to 10=>Selection result not changed, 10= 10,000 ps.
       );
+
+      pvHasValidTime =  (
+    	std::isfinite(pvs_TimeErr_) &&
+    	pvs_TimeErr_ < 1e6
+	);   // choose a sensible threshold (e.g. ps scale)
+
       pf_hasValidTime.push_back(hasValidTime ? 1 : 0);//
      
         float dt = 999;
         float dtErr = 999;
         float dtSig = 999;//
        
-      if (hasValidTime) {
+      if (hasValidTime && pvHasValidTime) {
       //Safe to use time:MTD time resolution ≈ 30–40 picoseconds = 0.03–0.04 nanoseconds.
       //!!!pf.time=t_track -pvs_t: It is the time residual relative to the primary vetex.
+//      if (pvHasValidTime) {
         dt = t - pvs_t_;//convert ns → ps=dt * 1000.0;=>dt=t_track-2(pvs_t);!No physics meaning
         dtErr =std::sqrt( tErr*tErr + pvs_TimeErr_*pvs_TimeErr_ );
         dtSig = dt/dtErr;
 //        dtSig = std::abs(dt) / std::sqrt(tErr*tErr + pvs_TimeErr_*pvs_TimeErr_);
 
+//-------------- Timed PF  check prints-------
+        edm::LogPrint("TimeDebug") 
+              << "PF " << iPF << " Accepted T. PF1"
+              << " time=" << pf.time() 
+              << " terr=" << pf.timeError() 
+              << " PV_time=" << pvs_t_ 
+              << " PV_timeErr=" << pvs_TimeErr_ 
+              << " dt(time-PV_time)=" <<dt
+              << " dtErr=" <<dtErr
+              << " dtSig=" <<dtSig;
+    
+
         // Save commone PF-level "timed" PF
-        pf_time.push_back(pf.time());
-        pf_timeError.push_back(pf.timeError());
-        pf_timeSig.push_back(tSig);
-        pf_dt.push_back(dt);
-        pf_dtErr.push_back(dtErr);
-        pf_dtSig.push_back(dtSig);
+//        pf_time.push_back(pf.time());
+//        pf_timeError.push_back(pf.timeError());
+//        pf_timeSig.push_back(tSig);
+//        pf_dt.push_back(dt);
+//        pf_dtErr.push_back(dtErr);
+//        pf_dtSig.push_back(dtSig);
         
         // Save PF index (ONCE)
-        pf_indices_withTime_.push_back(iPF);//global PF indices.
+//        pf_indices_withTime_.push_back(iPF);//global PF indices.
   
         // Optional: log debug info
 //        edm::LogWarning("TimingCheck")
@@ -2247,6 +2268,10 @@ std::cout << "[DiagPF] Event " << iEvent.id().event()
 //        << " ns, dtSig=" << dtSig;
 //        << " outside MTD acceptance!";
       } else {
+        dt    = std::numeric_limits<float>::quiet_NaN();
+        dtErr = std::numeric_limits<float>::quiet_NaN();
+//        dtSig = std::numeric_limits<float>::quiet_NaN();
+         dtSig=999;      
         // Invalid or missing time
         pf_time.push_back(999);
         pf_timeError.push_back(999);
@@ -2281,14 +2306,14 @@ std::cout << "[DiagPF] Event " << iEvent.id().event()
       pf_passes4D.push_back(passesLooseCut ? 1 : 0);
 
       if (!hasTimeCompatibleWithPV) {
-          edm::LogPrint("TimeDebug") 
-              << "PF " << iPF 
-              << " rejected: time=" << pf.time() 
-              << " terr=" << pf.timeError() 
-              << " eta=" << pf.eta();
+//          edm::LogPrint("TimeDebug") 
+//              << "PF " << iPF 
+//              << " rejected: time=" << pf.time() 
+//              << " terr=" << pf.timeError() 
+//              << " eta=" << pf.eta();
        } else {
-          edm::LogPrint("TimeDebug") 
-              << "PF " << iPF << " accepted for time jets.";
+//          edm::LogPrint("TimeDebug") 
+//              << "PF " << iPF << " accepted for time jets.";
       }//End of (!hasTimeCompatibleWithPV) else{}
 
       if (keepAlways) {// const bool keepAlways = (fromPV == 3);
@@ -2325,16 +2350,27 @@ std::cout << "[DiagPF] Event " << iEvent.id().event()
         fjInputs_time.push_back(pj_time);
         pf_for_time.push_back(&pf);
 
+//-------------- Timed PF  check prints-------
+        edm::LogPrint("TimeDebug") 
+              << "PF " << iPF << " Accepted T. PF2"
+              << " time=" << pf.time() 
+              << " terr=" << pf.timeError() 
+              << " PV_time=" << pvs_t_ 
+              << " PV_timeErr=" << pvs_TimeErr_ 
+              << " dt(time-PV_time)=" <<dt
+              << " dtErr=" <<dtErr
+              << " dtSig=" <<dtSig;
+
         //To verify the timed jet's PF
-//        pf_time.push_back(pf.time());
-//        pf_timeError.push_back(pf.timeError());
-//        pf_timeSig.push_back(tSig);
-//        pf_dt.push_back(dt);
-//        pf_dtErr.push_back(dtErr);
-//        pf_dtSig.push_back(dtSig);
+        pf_time.push_back(pf.time());
+        pf_timeError.push_back(pf.timeError());
+        pf_timeSig.push_back(tSig);
+        pf_dt.push_back(dt);
+        pf_dtErr.push_back(dtErr);
+        pf_dtSig.push_back(dtSig);
 
         // Save PF index (ONCE)
-//        pf_indices_withTime_.push_back(iPF);//global PF indices.
+        pf_indices_withTime_.push_back(iPF);//global PF indices.
       }//End of if (hasTimeCompatibleWithPV)
     } else {
       // Fill with defaults to avoid division by zero, preserve structure

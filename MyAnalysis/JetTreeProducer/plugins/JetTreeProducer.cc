@@ -2251,15 +2251,15 @@ std::cout << "[DiagPF] Event " << iEvent.id().event()
     
 
         // Save commone PF-level "timed" PF
-//        pf_time.push_back(pf.time());
-//        pf_timeError.push_back(pf.timeError());
-//        pf_timeSig.push_back(tSig);
-//        pf_dt.push_back(dt);
-//        pf_dtErr.push_back(dtErr);
-//        pf_dtSig.push_back(dtSig);
+        pf_time.push_back(pf.time());
+        pf_timeError.push_back(pf.timeError());
+        pf_timeSig.push_back(tSig);
+        pf_dt.push_back(dt);
+        pf_dtErr.push_back(dtErr);
+        pf_dtSig.push_back(dtSig);
         
         // Save PF index (ONCE)
-//        pf_indices_withTime_.push_back(iPF);//global PF indices.
+        pf_indices_withTime_.push_back(iPF);//global PF indices.
   
         // Optional: log debug info
 //        edm::LogWarning("TimingCheck")
@@ -2293,7 +2293,7 @@ std::cout << "[DiagPF] Event " << iEvent.id().event()
       bool passesTightCut = (std::abs(dz) < 0.03 && dzSig < 0.2);//3D tight selection
       bool passesLooseCut = (std::abs(dz) < 0.05 && dzSig < 0.5);//3D loos selection
       bool keepDisplaced = (isDisplaced && hasValidTime);//4D selection
-      bool hasTimeCompatibleWithPV= hasValidTime && (std::abs(dtSig) < dtSigCut);//dtSigCut = 3.0f
+      bool hasTimeCompatibleWithPV= hasValidTime && pvHasValidTime && (std::abs(dtSig) < dtSigCut);//dtSigCut = 3.0f
       bool passes3D = (std::abs(dz) < dzCut) && (std::abs(dzSig) < dzSigCut);
       bool passes4D = passes3D && hasValidTime && (std::abs(dtSig) < dtSigCut);//dtSigCut = 3.0f;      
 
@@ -2362,15 +2362,15 @@ std::cout << "[DiagPF] Event " << iEvent.id().event()
               << " dtSig=" <<dtSig;
 
         //To verify the timed jet's PF
-        pf_time.push_back(pf.time());
-        pf_timeError.push_back(pf.timeError());
-        pf_timeSig.push_back(tSig);
-        pf_dt.push_back(dt);
-        pf_dtErr.push_back(dtErr);
-        pf_dtSig.push_back(dtSig);
+//        pf_time.push_back(pf.time());
+//        pf_timeError.push_back(pf.timeError());
+//        pf_timeSig.push_back(tSig);
+//        pf_dt.push_back(dt);
+//        pf_dtErr.push_back(dtErr);
+//        pf_dtSig.push_back(dtSig);
 
         // Save PF index (ONCE)
-        pf_indices_withTime_.push_back(iPF);//global PF indices.
+//        pf_indices_withTime_.push_back(iPF);//global PF indices.
       }//End of if (hasTimeCompatibleWithPV)
     } else {
       // Fill with defaults to avoid division by zero, preserve structure

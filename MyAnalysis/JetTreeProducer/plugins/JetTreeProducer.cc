@@ -1802,10 +1802,6 @@ bool hasGenZ = (genvertex_source != "fallback_zero");
   PUContentReco puContentAlgo;
   PFTruthContentReco puContentTruth;
 
-  float pvTime = 0.0f;                  // or your stored primary vertex time
-//float pvTime = pvs_t_;
-  bool useTimingFallbackPuppi = true;   // set according to your config
-
   //Define the global PF vector
   std::vector<const pat::PackedCandidate*> pf_all;
   pf_all.reserve(pf_coll.size());
@@ -1813,11 +1809,60 @@ bool hasGenZ = (genvertex_source != "fallback_zero");
     pf_all.push_back(&pf);
   }
 // Diagnostic counters
-int nPF_total = 0, nPF_matched = 0, nPF_unmatched = 0;
-int nPF_charged = 0, nPF_charged_matched = 0;
-int nPF_neutral = 0, nPF_neutral_matched = 0;
-float best_dR_in_event = 999.f; 
+  int nPF_total = 0, nPF_matched = 0, nPF_unmatched = 0;
+  int nPF_charged = 0, nPF_charged_matched = 0;
+  int nPF_neutral = 0, nPF_neutral_matched = 0;
+  float best_dR_in_event = 999.f; 
  
+  pv_x_.clear();
+  pv_y_.clear();
+  pv_z_.clear();
+  pv_t_.clear();
+  pv_chi2_.clear();
+  pv_ndof_.clear();
+  pv_nTracks_.clear(); 
+
+//Store all primary vertices in a vector
+    for (const auto& vtx:reco_pvs) {
+    pv_x_.push_back(vtx.x());
+    pv_y_.push_back(vtx.y());
+    pv_z_.push_back(vtx.z());
+    pv_t_.push_back(vtx.t());
+    pv_chi2_.push_back(vtx.chi2());
+    pv_ndof_.push_back(vtx.ndof());
+    pv_nTracks_.push_back(vtx.nTracks());
+   }
+
+
+  // Fill beam spot information
+  if (beamspot.isValid()) {
+    beamspot_x_ = beamspot->x0();
+    beamspot_y_ = beamspot->y0();
+    beamspot_z_ = beamspot->z0();
+  }
+
+  // Fill first primary vertex variables
+  if (!reco_pvs.empty()) {
+     const reco::Vertex& firstPV = reco_pvs[0];
+
+     pvs_x_ = firstPV.x();
+     pvs_y_ = firstPV.y();
+     pvs_z_ = firstPV.z();
+     pvs_t_ = firstPV.t();
+     pvs_TimeErr_=firstPV.tError();
+   }
+
+  // Fill generator particle z-positions
+  if (genpVec.empty()) {
+    for (const auto& particle : genpVec) {
+      genparticles_z_.push_back(particle.vz());
+    }
+  }
+
+//  float pvTime = 0.0f;                  // or your stored primary vertex time
+  float pvTime = pvs_t_;
+  bool useTimingFallbackPuppi = true;   // set according to your config
+
   //=============  PF Particle Loop  =======================
   int pf_coll_index = 0;
   for (size_t iPF = 0; iPF < pf_coll.size(); ++iPF) {
@@ -2209,6 +2254,7 @@ std::cout << "[DiagPF] Event " << iEvent.id().event()
       float t = pf.time();//nanoseconds. pf.time=t_track_i -pvs_t
       float tErr = pf.timeError();//nanoseconds
       float tSig=pf.time()/pf.timeError();
+
       // === Robust validity check ===
       // Treat as "valid" only if error is positive and not too large
       hasValidTime = (
@@ -2857,55 +2903,7 @@ processFastJetCollection(timeJets,  genJets,
 //  jetResponse_PR_loose_ = -1;
 //  jetAbsEta_ = -1; 
 
-pv_x_.clear();
-pv_y_.clear();
-pv_z_.clear();
-pv_t_.clear();
-pv_chi2_.clear();
-pv_ndof_.clear();
-pv_nTracks_.clear(); 
 
-//Store all primary vertices in a vector
-    for (const auto& vtx:reco_pvs) {
-    pv_x_.push_back(vtx.x());
-    pv_y_.push_back(vtx.y());
-    pv_z_.push_back(vtx.z());
-    pv_t_.push_back(vtx.t());
-    pv_chi2_.push_back(vtx.chi2());
-    pv_ndof_.push_back(vtx.ndof());
-    pv_nTracks_.push_back(vtx.nTracks());
-   }
-
-
-  // Fill first primary vertex variables
-  if (!reco_pvs.empty()) {
-    const reco::Vertex& firstPV = reco_pvs[0];
-
-    pvs_x_ = firstPV.x();
-    pvs_y_ = firstPV.y();
-    pvs_z_ = firstPV.z();
-    pvs_t_ = firstPV.t();
-    pvs_TimeErr_=firstPV.tError();
-  }
-
-  // Fill beam spot information
-  if (beamspot.isValid()) {
-    beamspot_x_ = beamspot->x0();
-    beamspot_y_ = beamspot->y0();
-    beamspot_z_ = beamspot->z0();
-  }
-
-  // Fill generator particle z-positions
-  if (genpVec.empty()) {
-    for (const auto& particle : genpVec) {
-      genparticles_z_.push_back(particle.vz());
-    }
-  }
-
-
-  // Fill generator vertex z-position (already done above, but now write it to tree)
-  if (hasGenZ) {
-  }
 edm::LogPrint("JetTreeProducer") 
      << "Filling event with "
      << pf_keepAlways.size() << " PFs";
@@ -2926,6 +2924,7 @@ std::cout << "PF candidates: " << pf_pt.size()
           << std::endl;
 
 edm::LogInfo("JetTreeProducer") << "Found genJets: size = " << genJets.size();
+
 for (size_t i=0; i < std::min<size_t>(genJets.size(), 5); ++i) {
     const auto& g = genJets[i];
     edm::LogInfo("JetTreeProducer") << "  GenJet[" << i << "]: pt=" << g.pt()
@@ -2948,6 +2947,7 @@ tree_->Fill();
       edm::LogWarning("JetTreeProducer") << "pf_coll[i].pt() = " << pf_coll[i].pt();
     }
   }//End of for (size_t i = 0; i < pf_for_allCollections.size()
+
   std::vector<int> jetIsHS_puppi_all_;
   std::vector<float> jetPt_puppi_all_;
   std::vector<float> jetAbsEta_puppi_all_;

@@ -761,6 +761,7 @@ std::vector<float> jetDeltaR_fromPV3_all_;
 std::vector<float> jetDeltaR_tight_all_;
 std::vector<float> jetDeltaR_loose_all_;
 std::vector<float> jetDeltaR_time_all_;
+std::vector<float> jetDeltaR_time4D_all_;
 
 /*
 // Event-level PU jet counts
@@ -769,6 +770,7 @@ int nPUJets_pfraw_, nRecoJets_pfraw_;
 int nPUJets_tight_, nRecoJets_tight_;
 int nPUJets_loose_, nRecoJets_loose_;
 int nPUJets_time_, nRecoJets_time_;
+int nPUJets_time4D_, nRecoJets_time4D_;
 */
 
 
@@ -903,11 +905,23 @@ int nPUJets_time_, nRecoJets_time_;
   std::vector<float> jetTimeError_time_5leading_;
 */
 
+  //For 3D + MTD-based jet clustering=4D
+  std::vector<int> jetIsHS_time4D_all_;
+  std::vector<float> jetPt_time4D_all_;
+  std::vector<float> jetAbsEta_time4D_all_;
+  std::vector<float> jetPhi_time4D_all_;
+  std::vector<std::vector<unsigned int>> jet_pfIndices_time4D_all_;
+  std::vector<float> genPt_time4D_all_;
+  std::vector<float> jetResponse_PR_time4D_all_;
+  std::vector<float> puFracPt_algo_time4D_all_;
+  std::vector<float> puFracCount_algo_time4D_all_;
+  std::vector<float> puFracPt_truth_time4D_all_;
+  std::vector<float> puFracCount_truth_time4D_all_;
 
-// For jet-level timing (MTD jets)
-  std::vector<float> jetTimeSig_time_all_;   // (tjet - PVt)/σ_tjet
-  std::vector<float> jetTime_time_all_;
-  std::vector<float> jetTimeError_time_all_;
+// For jet-level timing (3D+MTD jets=4D)
+  std::vector<float> jetTime_time4D_all_;
+  std::vector<float> jetTimeError_time4D_all_;
+  std::vector<float> jetTimeSig_time4D_all_;   // (tjet - PVt)/σ_tjet
   
   std::vector<float> pf_vertex,pf_pt, pf_eta, pf_phi, pf_energy;
   std::vector<float> pf_charge,pf_puppiWeight,pf_puppiWeightNoLep;//For <pat::PackedCandidate> collection
@@ -956,6 +970,7 @@ int nPUJets_time_, nRecoJets_time_;
 
   std::vector<std::vector<unsigned int>> pf_indices_general_all_;//redundent,For <pat::PackedCandidate> collection
   std::vector<std::vector<unsigned int>> pf_indices_time_all_;//For <pat::PackedCandidate> collection
+  std::vector<std::vector<unsigned int>> pf_indices_time4D_all_;//For <pat::PackedCandidate> collection
   std::vector<std::vector<unsigned int>> pf_indices_tight_all_;//For <pat::PackedCandidate> collection
   std::vector<std::vector<unsigned int>> pf_indices_loose_all_;//For <pat::PackedCandidate> collection
   std::vector<std::vector<unsigned int>> pf_indices_pfraw_all_;//For <pat::PackedCandidate> collection
@@ -969,11 +984,11 @@ int nPUJets_time_, nRecoJets_time_;
 
   float pt_, eta_, phi_, mass_;//For jet collection
 //  std::vector<PFParticle> pfparticles;//For PackedCandidate,commented out
-  float pvs_x_, pvs_y_, pvs_z_,pvs_t_,pvs_TimeErr_; // For "FIRST" primary vertex position
+  float pvs_x_, pvs_y_, pvs_z_,pvs_t_,pvs_TimeErr_,pvs_tSig_; // For "FIRST" primary vertex position
 
   float beamspot_x_, beamspot_y_, beamspot_z_; // For beam spot position
   float genvertex_z_;
-  std::vector<float> puFrac_pfraw_,puFrac_fromPV3_, puFrac_tight_, puFrac_loose_,puFrac_time_;;
+  std::vector<float> puFrac_pfraw_,puFrac_fromPV3_, puFrac_tight_, puFrac_loose_,puFrac_time_,puFrac_time4D_;
 //  float pf_vx, pf_vy, pf_vz;//For <pat::PackedCandidate> collection
 //  int pf_pdgId,pf_isTimeValid;//For <pat::PackedCandidate> collection
 
@@ -986,6 +1001,7 @@ int nPUJets_time_, nRecoJets_time_;
   float efficiency_tight_, purity_tight_;
   float efficiency_loose_, purity_loose_;
   float efficiency_time_, purity_time_;//defined but not used
+  float efficiency_time4D_, purity_time4D_;//defined but not used
       
  
   int totalRecoJets = 0;
@@ -1017,6 +1033,10 @@ int nPUJets_time_, nRecoJets_time_;
   int totalRecoJets_time = 0; 
   int totalPUJets_time = 0; 
   float puJetFraction_time_all_ =0;
+
+  int totalRecoJets_time4D = 0; 
+  int totalPUJets_time4D = 0; 
+  float puJetFraction_time4D_all_ =0;
 
 };
 
@@ -1064,6 +1084,7 @@ tree_->Branch("pf_match30",     &pf_match30_);
   tree_->Branch("jetDeltaR_tight_all", &jetDeltaR_tight_all_);
   tree_->Branch("jetDeltaR_loose_all", &jetDeltaR_loose_all_);
   tree_->Branch("jetDeltaR_time_all",   &jetDeltaR_time_all_);
+  tree_->Branch("jetDeltaR_time4D_all",   &jetDeltaR_time4D_all_);
 
 /*
   // PU jet counts
@@ -1207,10 +1228,22 @@ tree_->Branch("pf_match30",     &pf_match30_);
   tree_->Branch("puFracCount_time_5leading", &puFracCount_time_5leading_);  
 */
 
+  tree_->Branch("jetIsHS_time4D_all", &jetIsHS_time4D_all_);
+  tree_->Branch("jetResponse_PR_time4D_all", &jetResponse_PR_time4D_all_);
+  tree_->Branch("jetAbsEta_time4D_all", &jetAbsEta_time4D_all_);
+  tree_->Branch("jetPt_time4D_all", &jetPt_time4D_all_);
+  tree_->Branch("jetPhi_time4D_all", &jetPhi_time4D_all_);
+  tree_->Branch("jet_pfIndices_time4D_all", &jet_pfIndices_time4D_all_);
+  tree_->Branch("genPt_time4D_all", &genPt_time4D_all_);
+  tree_->Branch("puFracPt_algo_time4D_all", &puFracPt_algo_time4D_all_);
+  tree_->Branch("puFracCount_algo_time4D_all", &puFracCount_algo_time4D_all_);  
+  tree_->Branch("puFracPt_truth_time4D_all", &puFracPt_truth_time4D_all_);
+  tree_->Branch("puFracCount_truth_time4D_all", &puFracCount_truth_time4D_all_);  
+  
   // Jet timing
-  tree_->Branch("jetTimeSig_time_all", &jetTimeSig_time_all_);
-  tree_->Branch("jetTime_time_all", &jetTime_time_all_);
-  tree_->Branch("jetTimeError_time_all", &jetTimeError_time_all_);
+  tree_->Branch("jetTime_time4D_all", &jetTime_time4D_all_);
+  tree_->Branch("jetTimeError_time4D_all", &jetTimeError_time4D_all_);
+  tree_->Branch("jetTimeSig_time4D_all", &jetTimeSig_time4D_all_);
 
 
    // Branches for jet kinematics 
@@ -1228,6 +1261,7 @@ tree_->Branch("pf_match30",     &pf_match30_);
   tree_->Branch("pvs_z", &pvs_z_, "pvs_z/F");
   tree_->Branch("pvs_t", &pvs_t_, "pvs_t/F");
   tree_->Branch("pvs_TimeErr", &pvs_TimeErr_, "pvs_TimeErr/F");
+  tree_->Branch("pvs_tSig", &pvs_tSig_, "pvs_tSig/F");
   // Branches for beam spot
   tree_->Branch("beamspot_x", &beamspot_x_, "beamspot_x/F");
   tree_->Branch("beamspot_y", &beamspot_y_, "beamspot_y/F");
@@ -1310,6 +1344,7 @@ tree_->Branch("pf_match30",     &pf_match30_);
   float efficiency_tight_, purity_tight_;
   float efficiency_loose_, purity_loose_;
   float efficiency_time_, purity_time_;//defined but not used
+  float efficiency_time4D_, purity_time4D_;//defined but not used
 
   tree_->Branch("totalRecoJets_pfraw", &totalRecoJets_pfraw,"totalRecoJets_pfraw/I");
   tree_->Branch("totalRecoJets_fromPV3", &totalRecoJets_fromPV3,"totalRecoJets_fromPV3/I");
@@ -1317,7 +1352,6 @@ tree_->Branch("pf_match30",     &pf_match30_);
   tree_->Branch("totalRecoJets_loose", &totalRecoJets_loose,"totalRecoJets_loose/I");
   tree_->Branch("totalRecoJets_time", &totalRecoJets_time,"totalRecoJets_time/I");
   
-
   tree_->Branch("totalPUJets_puppi", &totalPUJets_puppi,"totalPUJets_puppi/I");
   tree_->Branch("totalPUJets_pfraw", &totalPUJets_pfraw,"totalPUJets_pfraw/I");
   tree_->Branch("totalPUJets_fromPV3", &totalPUJets_fromPV3,"totalPUJets_fromPV3/I");
@@ -1332,6 +1366,7 @@ tree_->Branch("pf_match30",     &pf_match30_);
   tree_->Branch("puJetFraction_tight_all", &puJetFraction_tight_all_,"puJetFraction_tight_all/F");
   tree_->Branch("puJetFraction_loose_all", &puJetFraction_loose_all_,"puJetFraction_loose_all/F");
   tree_->Branch("puJetFraction_time_all", &puJetFraction_time_all_,"puJetFraction_time_all/F");
+  tree_->Branch("puJetFraction_time4D_all", &puJetFraction_time4D_all_,"puJetFraction_time4D_all/F");
 
   tree_->Branch("efficiency_puppi", &efficiency_puppi_,"efficiency_puppi/F");
   tree_->Branch("purity_puppi", &purity_puppi_,"purity_puppi/F");
@@ -1345,6 +1380,8 @@ tree_->Branch("pf_match30",     &pf_match30_);
   tree_->Branch("purity_loose", &purity_loose_,"purity_loose/F");
   tree_->Branch("efficiency_time", &efficiency_time_,"efficiency_time/F");
   tree_->Branch("purity_time", &purity_time_,"purity_time/F");
+  tree_->Branch("efficiency_time4D", &efficiency_time4D_,"efficiency_time4D/F");
+  tree_->Branch("purity_time4D", &purity_time4D_,"purity_time4D/F");
 
   tree_->Branch("pf_indices_withTime", &pf_indices_withTime_);
   
@@ -1354,12 +1391,14 @@ tree_->Branch("pf_match30",     &pf_match30_);
   tree_->Branch("pf_indices_tight_all", &pf_indices_tight_all_);
   tree_->Branch("pf_indices_loose_all", &pf_indices_loose_all_);
   tree_->Branch("pf_indices_time_all", &pf_indices_time_all_);
+  tree_->Branch("pf_indices_time4D_all", &pf_indices_time4D_all_);
   
   tree_->Branch("puFrac_pfraw", &puFrac_fromPV3_);
   tree_->Branch("puFrac_pfraw", &puFrac_pfraw_);
   tree_->Branch("puFrac_tight", &puFrac_tight_);
   tree_->Branch("puFrac_loose", &puFrac_loose_);
-  tree_->Branch("puFrac_MTD", &puFrac_time_);
+  tree_->Branch("puFrac_time", &puFrac_time_);
+  tree_->Branch("puFrac_time4D", &puFrac_time4D_);
 
   tree_->Branch("pf_isHS_algo", &pf_isHS_algo);//test
   tree_->Branch("pf_isPU_algo",  &pf_isPU_algo);//test
@@ -1413,7 +1452,7 @@ std::pair<double, std::string> JetTreeProducer::getGenVertexZ(const edm::Event& 
     edm::LogWarning("JetTreeProducer") << "No valid generator vertex found. Falling back to z=0.";
     return {genvertex_z_, source};
 }
-//Tes of gen vetex
+//Test of gen vetex
 
 void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) {
 //  pfparticles.clear();
@@ -1482,6 +1521,7 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   pf_indices_tight_all_.clear();
   pf_indices_loose_all_.clear();
   pf_indices_time_all_.clear();
+  pf_indices_time4D_all_.clear();
 
   pf_passesTightCut.clear();
   pf_passesLooseCut.clear();
@@ -1505,6 +1545,7 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   jetDeltaR_tight_all_.clear();
   jetDeltaR_loose_all_.clear();
   jetDeltaR_time_all_.clear();
+  jetDeltaR_time4D_all_.clear();
 
   jetIsHS_puppi_all_.clear();
   jetPt_puppi_all_.clear();
@@ -1637,6 +1678,19 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   puFracCount_time_5leading_.clear();
 */
 
+
+  jetIsHS_time4D_all_.clear();
+  jetPt_time4D_all_.clear();
+  jetPhi_time4D_all_.clear();
+  jet_pfIndices_time4D_all_.clear();
+  genPt_time4D_all_.clear();
+  jetResponse_PR_time4D_all_.clear();
+  jetAbsEta_time4D_all_.clear();
+  puFracPt_algo_time4D_all_.clear(); 
+  puFracCount_algo_time4D_all_.clear();
+  puFracPt_truth_time4D_all_.clear(); 
+  puFracCount_truth_time4D_all_.clear();
+
   int N_HS_total = 0;
 //  int N_selected = 0;
   int N_selected_fromPV3 = 0;
@@ -1716,6 +1770,8 @@ bool hasGenZ = (genvertex_source != "fallback_zero");
 
   // â Early event rejection if gen vertex is valid and reco_pvs(primary vertices) is not empty
   // =Only accept the event if the first reco PV is literally the one closest to the gen vertex.
+  //!Truth-matched primary vertex requirement (MC-only)
+  //!For physics analyses or data/MC comparisons, it should not be used
   if (hasGenZ && !reco_pvs.empty()) {
     double dz_first = std::abs(reco_pvs[0].z() - genvertex_z_);
     double minDist = dz_first;
@@ -1787,6 +1843,7 @@ bool hasGenZ = (genvertex_source != "fallback_zero");
   std::vector<fastjet::PseudoJet> fjInputs_tight;
   std::vector<fastjet::PseudoJet> fjInputs_loose;
   std::vector<fastjet::PseudoJet> fjInputs_time;
+  std::vector<fastjet::PseudoJet> fjInputs_time4D;
   std::vector<const pat::PackedCandidate*> pf_for_time;
   std::vector<const pat::PackedCandidate*> pf_for_allCollections;
   pf_for_allCollections.reserve(pf_coll.size());
@@ -1797,6 +1854,7 @@ bool hasGenZ = (genvertex_source != "fallback_zero");
   fjInputs_tight.clear();
   fjInputs_loose.clear();
   fjInputs_time.clear();
+  fjInputs_time4D.clear();
   pf_for_time.clear();
 
   PUContentReco puContentAlgo;
@@ -1851,6 +1909,7 @@ bool hasGenZ = (genvertex_source != "fallback_zero");
      pvs_t_ = firstPV.t();
      pvs_TimeErr_=firstPV.tError();
    }
+  pvs_tSig_=pvs_t_/pvs_TimeErr_;
 
   // Fill generator particle z-positions
   if (genpVec.empty()) {
@@ -1863,7 +1922,7 @@ bool hasGenZ = (genvertex_source != "fallback_zero");
   float pvTime = pvs_t_;
   bool useTimingFallbackPuppi = true;   // set according to your config
 
-  //=============  PF Particle Loop  =======================
+  //=========================  PF Particle Loop  ============================
   int pf_coll_index = 0;
   for (size_t iPF = 0; iPF < pf_coll.size(); ++iPF) {
   nPF_total++;
@@ -2213,11 +2272,12 @@ std::cout << "[DiagPF] Event " << iEvent.id().event()
     totalPF_truthPU += nPF_truthPU;
     totalPF_algoMis += nMis_algo;
     ++nEventsChecked;
+
   }//End of if (nPV <= 1) 
 
   // --- Print global average every 50 events
   if (nEventsChecked % 50 == 0 && totalPF_all > 0) {
-    float avg_algoPU  = 100.0f * totalPF_algoPU  / totalPF_all;
+    float avg_algoPU >+(abs(dz)<0.03&&dzSig<0.2) = 100.0f * totalPF_algoPU  / totalPF_all;
     float avg_truthPU = 100.0f * totalPF_truthPU / totalPF_all;
     float avg_mis     = 100.0f * totalPF_algoMis / totalPF_all;
     std::cout << "[DiagGlobal] after " << nEventsChecked << " events: "
@@ -2267,7 +2327,7 @@ std::cout << "[DiagPF] Event " << iEvent.id().event()
       pvHasValidTime =  (
     	std::isfinite(pvs_TimeErr_) &&
     	pvs_TimeErr_ < 1e6
-	);   // choose a sensible threshold (e.g. ps scale)
+	);   // choose a sensible threshold of pvs_t=real value. 
 
       pf_hasValidTime.push_back(hasValidTime ? 1 : 0);//
      
@@ -2314,10 +2374,12 @@ std::cout << "[DiagPF] Event " << iEvent.id().event()
 //        << " ns, dtSig=" << dtSig;
 //        << " outside MTD acceptance!";
       } else {
-        dt    = std::numeric_limits<float>::quiet_NaN();
-        dtErr = std::numeric_limits<float>::quiet_NaN();
+//        dt    = std::numeric_limits<float>::quiet_NaN();
+//        dtErr = std::numeric_limits<float>::quiet_NaN();
 //        dtSig = std::numeric_limits<float>::quiet_NaN();
-         dtSig=999;      
+         dt =    999;
+         dtErr = 999;
+         dtSig = 999;      
         // Invalid or missing time
         pf_time.push_back(999);
         pf_timeError.push_back(999);
@@ -2330,7 +2392,7 @@ std::cout << "[DiagPF] Event " << iEvent.id().event()
 //          << "PF with eta=" << eta_ << ", pt=" << pt 
 //          << " has INVALID time (time=" << t
 //          << ", error=" << tErr << ")";
-      }//end of if (hasValidTime) else {}
+      }//end of if (hasValidTime&& pvHasValidTime) else {}
 
       //dz:mean -3.1 X 10(-6), sigma:0.010cm
       //dzSig: mean -2.1X 10 (-6), sigma: 0.073 
@@ -2341,7 +2403,8 @@ std::cout << "[DiagPF] Event " << iEvent.id().event()
       bool keepDisplaced = (isDisplaced && hasValidTime);//4D selection
       bool hasTimeCompatibleWithPV= hasValidTime && pvHasValidTime && (std::abs(dtSig) < dtSigCut);//dtSigCut = 3.0f
       bool passes3D = (std::abs(dz) < dzCut) && (std::abs(dzSig) < dzSigCut);
-      bool passes4D = passes3D && hasValidTime && (std::abs(dtSig) < dtSigCut);//dtSigCut = 3.0f;      
+//      bool passes4D = passes3D && hasValidTime && (std::abs(dtSig) < dtSigCut);//dtSigCut = 3.0f;      
+      bool passes4D = passesTightCut && hasTimeCompatibleWithPV;//dzSig<0.2 + dtSigCut = 3.0f;      
 
       pf_passesTightCut.push_back(passesTightCut ? 1 : 0);
       pf_passesLooseCut.push_back(passesLooseCut ? 1 : 0);
@@ -2369,32 +2432,35 @@ std::cout << "[DiagPF] Event " << iEvent.id().event()
         
        // if (isHS) ++N_selected_HS_tight;
       }//End of if (keepAlways)
-      if (passesTightCut) {
-//      if (passesTightCut&&hasValidTime && (std::abs(dtSig) < dtSigCut) {//To save track has large dz,4D selection
-        fjInputs_tight.push_back(pj);
-        ++N_selected_tight;
-       // if (isHS) ++N_selected_HS_tight;
-      }//End of if (passesTightCut)
+
       if (passesLooseCut) {
 //      if (passesLooseCut&&hasValidTime && (std::abs(dtSig) < dtSigCut) {//To save track has large dz, 4D selection
         fjInputs_loose.push_back(pj);
         ++N_selected_loose;
       //  if (isHS) ++N_selected_HS_loose;
       }//End of if (passesLooseCut)
+
+      if (passesTightCut) {
+//      if (passesTightCut&&hasValidTime && (std::abs(dtSig) < dtSigCut) {//To save track has large dz,4D selection
+        fjInputs_tight.push_back(pj);
+        ++N_selected_tight;
+       // if (isHS) ++N_selected_HS_tight;
+      }//End of if (passesTightCut)
+
         // MTD-based selection
 //      if (pf.isTimeValid() && pf.timeError() < 0.05) {//pat::PackedCandidate does not have a method called .isTimeValid()
 //      if (hasValidTime) {
-      if (hasTimeCompatibleWithPV) {//PV compatibility should be assessed at jet level, not PF level.
+      if (hasTimeCompatibleWithPV) {//Only Time,PV compatibility should be assessed at jet level, not PF level.
 
       // create a local copy if it need separate UserInfo, but keep the same index
-  //      pj_time.set_user_index(pf_for_time.size());//local index bug
-  //      pj_time.set_user_index(static_cast<int>(iPF));//index back to PackedCandidate
- //       fastjet::PseudoJet pj_time(pf.px(), pf.py(), pf.pz(), pf.energy());
+//      pj_time.set_user_index(pf_for_time.size());//local index bug
+//      pj_time.set_user_index(static_cast<int>(iPF));//index back to PackedCandidate
+//      fastjet::PseudoJet pj_time(pf.px(), pf.py(), pf.pz(), pf.energy());
 
         // Reuse the same PseudoJet (already has global user_index)
         fastjet::PseudoJet pj_time = pj; // copy keeps iPF index
         fjInputs_time.push_back(pj_time);
-        pf_for_time.push_back(&pf);
+//        pf_for_time.push_back(&pf);
 
 //-------------- Timed PF  check prints-------
         edm::LogPrint("TimeDebug") 
@@ -2409,7 +2475,7 @@ std::cout << "[DiagPF] Event " << iEvent.id().event()
 
         //To verify the timed jet's PF
 //        pf_time.push_back(pf.time());
-//        pf_timeError.push_back(pf.timeError());
+//        pf_timeError.pupf_for_timesh_back(pf.timeError());
 //        pf_timeSig.push_back(tSig);
 //        pf_dt.push_back(dt);
 //        pf_dtErr.push_back(dtErr);
@@ -2418,29 +2484,39 @@ std::cout << "[DiagPF] Event " << iEvent.id().event()
         // Save PF index (ONCE)
 //        pf_indices_withTime_.push_back(iPF);//global PF indices.
       }//End of if (hasTimeCompatibleWithPV)
+
+      if (passes4D) { 
+        fastjet::PseudoJet pj_time4D = pj; // copy keeps iPF index
+        fjInputs_time4D.push_back(pj_time4D);
+        pf_for_time.push_back(&pf);
+      }//End of if (passes4D)
+     
     } else {
       // Fill with defaults to avoid division by zero, preserve structure
-//      pf_dxy.push_back(99);
-//      pf_dz.push_back(99);
-//      pf_dzError.push_back(99);  // avoid division by zero
-//      pf_dzSig.push_back(99);
-//      pf_time.push_back(999);
-//      pf_timeError.push_back(999);
-//      pf_timeSig.push_back(999);
-//      pf_dt.push_back(999);
-//      pf_dtErr.push_back(999);
-//      pf_dtSig.push_back(999);
+      pf_dxy.push_back(99);
+      pf_dz.push_back(99);
+      pf_dzError.push_back(99);  // avoid division by zero
+      pf_dzSig.push_back(99);
+      pf_time.push_back(999);
+      pf_timeError.push_back(999);
+      pf_timeSig.push_back(999);
+      pf_dt.push_back(999);
+      pf_dtErr.push_back(999);
+      pf_dtSig.push_back(999);
+      pf_isInMTD.push_back(0);
 
+       
+      //Neutral candidate -no dz/dzSig
+      //If you consider only chared particle,It does not filled with pj,comment out *.push_back(pj)
+      //CMSSW_15_1_0_pre4/Optionally:include all neutrals in tight/loose
+      ++N_neutral;
         //!!!Place to investigate!!
 //      fjInputs_fromPV3.push_back(pj);
 //      fjInputs_tight.push_back(pj);
 //      fjInputs_loose.push_back(pj);
 //      fjInputs_time.push_back(pj);
-//      pf_isInMTD.push_back(0);
-       
-      //Neutral candidate -no dz/dzSig
-      //CMSSW_15_1_0_pre4/Optionally:include all neutrals in tight/loose
-      ++N_neutral;
+//      fjInputs_time4D.push_back(pj);
+//
     }//End of if (pf.hasTrackDetails() && isCharged) else{}
     //outside the MTD geometry &seem to have time info:Indicate a reconstruction or simulation artifact.
     ++pf_coll_index;
@@ -2488,6 +2564,8 @@ edm::LogVerbatim("JetTreeProducer")
   auto cs_time = fastjet::ClusterSequence(fjInputs_time, jetDef);
   auto timeJets = fastjet::sorted_by_pt(cs_time.inclusive_jets(10.0));
 
+  auto cs_time4D = fastjet::ClusterSequence(fjInputs_time4D, jetDef);
+  auto timeJets4D = fastjet::sorted_by_pt(cs_time4D.inclusive_jets(10.0));
  
 // diagnostic: check user_index min/max for each fjInputs_* before clustering
   auto diag_index_range = [](const std::vector<fastjet::PseudoJet>& v, const char* name){
@@ -2516,14 +2594,17 @@ edm::LogVerbatim("JetTreeProducer")
 //Computes per-jet timing observables using the MTD (Minimum Timing Detector) information stored in the PF candidates
 //Jets from the hard scatter should have times consistent with the PV (jetTsig ≈ 0).
 //Pileup jets can have displaced times (jetTsig large)
-  jetTime_time_all_.clear();
-  jetTimeError_time_all_.clear();
-  jetTimeSig_time_all_.clear();
+
+  jetTime_time4D_all_.clear();
+  jetTimeError_time4D_all_.clear();
+  jetTimeSig_time4D_all_.clear();
+
   edm::LogPrint("TimeDebug") 
       << "fjInputs_time size = " << fjInputs_time.size();
 
 //============= UPDATED JET-TIME ALGORITHM =============//
-for (const auto& jet : timeJets) {
+//for (const auto& jet : timeJets) {
+for (const auto& jet : timeJets4D) {
 
     float wSum = 0.0f;         // Σ (1/σ_t^2)
     float wtSum = 0.0f;        // Σ (t/σ_t^2)
@@ -2558,9 +2639,9 @@ for (const auto& jet : timeJets) {
         tSig_jet = (tErr_jet > 0) ? std::abs(t_jet - pvs_t_) / tErr_jet : -999.f;
     }
 
-    jetTime_time_all_.push_back(t_jet);
-    jetTimeError_time_all_.push_back(tErr_jet);
-    jetTimeSig_time_all_.push_back(tSig_jet);
+    jetTime_time4D_all_.push_back(t_jet);
+    jetTimeError_time4D_all_.push_back(tErr_jet);
+    jetTimeSig_time4D_all_.push_back(tSig_jet);
 }//for (const auto& jet : timeJets) 
 //=========================== END UPDATED BLOCK ==============================//
 
@@ -2897,6 +2978,13 @@ processFastJetCollection(timeJets,  genJets,
 	jetIsHS_time_all_, jetPt_time_all_, jetAbsEta_time_all_, jetPhi_time_all_, jet_pfIndices_time_all_, jetResponse_PR_time_all_,genPt_time_all_, puFracPt_algo_time_all_, puFracCount_algo_time_all_,puFracPt_truth_time_all_, puFracCount_truth_time_all_, jetDeltaR_time_all_,pf_indices_time_all_,
 //	jetPt_time_5leading_, jetAbsEta_time_5leading_, jetResponse_PR_time_5leading_, genPt_time_5leading_, puFracPt_time_5leading_, puFracCount_time_5leading_,
 	totalRecoJets_time, totalPUJets_time, puJetFraction_time_all_,efficiency_time_, purity_time_);
+
+
+processFastJetCollection(timeJets4D,  genJets, 
+	jetIsHS_time4D_all_, jetPt_time4D_all_, jetAbsEta_time4D_all_, jetPhi_time4D_all_, jet_pfIndices_time4D_all_, jetResponse_PR_time4D_all_,genPt_time4D_all_, puFracPt_algo_time4D_all_, puFracCount_algo_time4D_all_,puFracPt_truth_time4D_all_, puFracCount_truth_time4D_all_, jetDeltaR_time4D_all_,pf_indices_time4D_all_,
+//	jetPt_time4D_5leading_, jetAbsEta_time4D_5leading_, jetResponse_PR_time4D_5leading_, genPt_time4D_5leading_, puFracPt_time4D_5leading_, puFracCount_time4D_5leading_,
+	totalRecoJets_time4D, totalPUJets_time4D, puJetFraction_time4D_all_,efficiency_time4D_, purity_time4D_);
+
 
 
 //  jetResponse_PR_tight_ = -1;

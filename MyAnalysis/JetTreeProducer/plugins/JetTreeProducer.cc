@@ -9,6 +9,7 @@
 
 #include "DataFormats/PatCandidates/interface/Jet.h"
 #include "DataFormats/JetReco/interface/GenJet.h" 
+#include "DataFormats/JetReco/interface/GenJetCollection.h"
 #include "DataFormats/Math/interface/deltaR.h"  
 #include "fastjet/ClusterSequence.hh"
 #include "fastjet/PseudoJet.hh"
@@ -27,6 +28,7 @@
 #include "DataFormats/PatCandidates/interface/PackedGenParticle.h"
 #include "SimDataFormats/GeneratorProducts/interface/GenEventInfoProduct.h"
 #include "DataFormats/HepMCCandidate/interface/GenParticle.h"
+#include "fastjet/ClusterSequence.hh"
 
 #include "TTree.h"
 #include "TFile.h"
@@ -97,20 +99,22 @@ inline std::vector<unsigned int> getPFIndicesFromPatJet(const pat::Jet& jet) {
 //Old Version
 inline std::vector<unsigned int> getPFIndicesFromPseudoJet(
     const fastjet::PseudoJet& jet,
-    const std::vector<const pat::PackedCandidate*>& pfAll)
+    const std::vector<const pat::PackedCandidate*>& pf_for_allCollections)
 {
     std::vector<unsigned int> out;
     std::vector<fastjet::PseudoJet> consts = jet.constituents();
 
     for (const auto &c : consts) {
+//         if (c.user_index()<0) continue;
         int idx = c.user_index();
-        if (idx < 0 || static_cast<size_t>(idx) >= pfAll.size()) {
+        if (idx < 0 || static_cast<size_t>(idx) >= pf_for_allCollections.size()) {
             edm::LogWarning("getPFIndicesFromPseudoJet")
             << "Invalid user_index=" << idx
-            << " pfAll.size()=" << pfAll.size();
+            << " pf_for_allCollections.size()=" << pf_for_allCollections.size();
             continue;//skip this constituent instead of dereferencing
         }
-        const pat::PackedCandidate* pf = pfAll[idx];
+        const pat::PackedCandidate* pf = pf_for_allCollections[idx];
+        if(!pf_for_allCollections[idx]) continue;
         out.push_back(static_cast<unsigned int>(idx));
     }
     return out;
@@ -241,15 +245,15 @@ std::pair<const pat::PackedGenParticle*, float> matchToGen(const pat::PackedCand
 
 // --- Helper Function3: Jet ↔ GenJet Jetresponse calcultation---
 inline float computeResponse(const pat::Jet& recoJet,
-                              const reco::GenJet* matchedGenJet) {
-    if (!matchedGenJet || matchedGenJet->pt() <= 0) return -1.0f;
-    return recoJet.pt() / matchedGenJet->pt();
+                              const reco::GenJet* bestMatchedGenJet) {
+    if (!bestMatchedGenJet || bestMatchedGenJet->pt() <= 0) return -1.0f;
+    return recoJet.pt() / bestMatchedGenJet->pt();
 }
 
 inline float computeResponse(const fastjet::PseudoJet& fjJet,
-                              const reco::GenJet* matchedGenJet) {
-    if (!matchedGenJet || matchedGenJet->pt() <= 0) return -1.0f;
-    return fjJet.pt() / matchedGenJet->pt();
+                              const reco::GenJet* bestMatchedGenJet) {
+    if (!bestMatchedGenJet || bestMatchedGenJet->pt() <= 0) return -1.0f;
+    return fjJet.pt() / bestMatchedGenJet->pt();
 }
 
 
@@ -420,7 +424,7 @@ inline double weightedGenJetVz(
 //      if (std::abs(g.vz() - genvertex_z) > maxDz) continue;
       // === publication-level weighted vz for genJet ===
       double vzGen = weightedGenJetVz(g, packedGen);
-      if (std::abs(vzGen - genvertex_z) > maxDz) continue;
+      if (std::abs(vzGen - genvertex_z) > maxDz) continue;//pileup GEN jets from displaced vertices are rejected before matching.
 
       const double dR = reco::deltaR(eta, phi, g.eta(), g.phi());//Compute ΔR
       if (dR < dRMax && dR < bestDR) {//Keep the closest match within dRMax.
@@ -437,8 +441,10 @@ inline double weightedGenJetVz(
 
   struct JetTruthMatch {//Just a container (like a small record) to hold matching results.
     bool   isHS=false;//whether the jet is a "hard-scatter" jet (true if matched to a gen jet).
+    bool   isAmbiguous=false;   // NEW:0.2< dR <0.4 region
     float  dR=-1.0;//ΔR distance to the matched gen-jet (or -1 if none).
     float  genPt=-1.0;//matched gen jet’s pT (or -1).
+    float  genEta=-999.0;//matched gen jet’s eta (or -999).
     int    genIndex=-1;//index in the gens vector (or -1).
     const reco::GenJet* matchedGen=nullptr; 
   };
@@ -462,6 +468,7 @@ inline double weightedGenJetVz(
     out.isHS = false;
     out.dR = -1.0;
     out.genPt = -1.0f;
+    out.genEta = -999.0f;
     out.genIndex = -1;
     out.matchedGen = nullptr;
     return out;
@@ -472,11 +479,32 @@ inline double weightedGenJetVz(
 
     const reco::GenJet* g = bestGenMatch(j, gens,packedGen, dRMax, minGenPt, maxDz, genvertex_z_, &dR, &idx);
 //    const reco::GenJet* g = bestGenMatch(j, gens, dRMax, minGenPt, &dR, &idx);//It calls bestGenMatch(), gets the pointer,ΔR,and index.
-    out.isHS     = (g != nullptr);//only true if match exists AND passed PV cut
+//    out.isHS     = (g != nullptr);//only true if match exists AND a generator-level PV compatibility cut inside bestGenMatch:| z(gen particle) − genvertex_z_ | < maxDz
     out.dR       = static_cast<float>(dR);//best ΔR or -1.
     out.genPt    = (g ? g->pt() : -1.0f);//if valid, else -1.
+    out.genEta    = (g ? g->eta() : -999.0f);//if valid, else -1.
     out.genIndex = idx;// index in gens vector,Indicate the matched gen jet positon in the vector
     out.matchedGen      =  g;//pointer to actual GenJet
+
+    // --- NEW 3-region classification ---
+    const double dR_HS = 0.2;
+    const double dR_PU = 0.4;
+
+    out.isHS = false;
+    out.isAmbiguous = false;
+
+    if (g != nullptr) {
+        if (dR <= dR_HS) {
+            out.isHS = true;          // HS
+        }  
+        else if (dR >= dR_PU) {
+            out.isHS = false;         // PU
+        }
+        else {
+            out.isAmbiguous = true;   // exclude region
+        }
+    }//End of if (g != nullptr)
+
     return out;//Returns the JetTruthMatch struct.
   }//It just call .classifyJetHS' and get a neat struct with all info
 
@@ -495,13 +523,35 @@ inline double weightedGenJetVz(
     const reco::GenJet* g = bestGenMatch(j, gens,packedGen, dRMax, minGenPt, maxDz, genvertex_z_, &dR, &idx);
 //    const reco::GenJet* g = bestGenMatch(j, gens, dRMax, minGenPt, &dR, &idx);//It calls bestGenMatch(), gets the pointer,ΔR,and index.
     JetTruthMatch out;//It builds a JetTruthMatch out strut
-    out.isHS     = (g != nullptr);//only true if match exists AND passed PV cut
+//    out.isHS     = (g != nullptr);//only true if match exists AND a generator-level PV compatibility cut inside bestGenMatch:| z(gen particle) − genvertex_z_ | < maxDz 
     out.dR       = static_cast<float>(dR);//best ΔR or -1.
     out.genPt    = (g ? g->pt() : -1.0f);//if valid, else -1.
+    out.genEta    = (g ? g->eta() : -999.0f);//if valid, else -1.
     out.genIndex = idx;//from the loop.
     out.matchedGen      =  g;
+
+    // --- NEW 3-region classification ---
+    const double dR_HS = 0.2;
+    const double dR_PU = 0.4;
+
+    out.isHS = false;
+    out.isAmbiguous = false;
+
+    if (g != nullptr) {
+        if (dR <= dR_HS) {
+            out.isHS = true;          // HS
+        }  
+        else if (dR >= dR_PU) {
+            out.isHS = false;         // PU
+        }
+        else {
+            out.isAmbiguous = true;   // exclude region
+        }
+    }//End of if (g != nullptr)
+
     return out;//Returns the JetTruthMatch struct.
   }//It just call .classifyJetHS' and get a neat struct with all info
+
 }//End of namespace
 
 //Constituent-level PU fractions (MiniAOD-friendly, reco-level)
@@ -642,7 +692,7 @@ inline void updatePFTruthContentReco(const pat::PackedCandidate* pf,
 //  FastJet PU-content calculator (algorithmic only, no truth inside)
 //=====================================================================
 inline PUContentReco computePUContentFastJet(const fastjet::PseudoJet& jet,
-                                             const std::vector<const pat::PackedCandidate*>& pfAll,
+                                             const std::vector<const pat::PackedCandidate*>& pf_for_allCollections,
                                              float pvTime,
                                              bool useTimingFallbackPuppi = true)
 {
@@ -650,65 +700,58 @@ inline PUContentReco computePUContentFastJet(const fastjet::PseudoJet& jet,
   for (const auto& c : jet.constituents()) {
     if (c.user_index()<0) continue;
     int idx = c.user_index();
-    if (idx < 0 || idx >= static_cast<int>(pfAll.size())) continue;
+    if (idx >= static_cast<int>(pf_for_allCollections.size())) continue;
     
-    const pat::PackedCandidate* pf = pfAll[idx];
+    const pat::PackedCandidate* pf = pf_for_allCollections[idx];
     updatePUContentReco(pf, acc, pvTime, useTimingFallbackPuppi);
   }
   return acc;
 }
 
-//Function: compute PU fractions for one jet
-inline PUContentReco computePUContentRecoJet(//A function that returns PUContentRec
-    const pat::Jet& jet,//the reco jet whose PF composition we are studying.
-    const std::vector<const pat::PackedCandidate*>& /*pfAll*/,//the full PF candidate collection by index
-    float pvTime,//the primary-vertex time, needed for neutral timing PU ID.
-    bool useTimingFallbackPuppi = true)//if true, neutrals with missing timing fall back to Puppi weight classification.
+//Function: compute PU fractions for one jet:Updated version (index-based, removed pointer recovery)
+inline PUContentReco computePUContentRecoJet(
+    const pat::Jet& jet,
+    const std::vector<const pat::PackedCandidate*>& pf_for_allCollections,
+    float pvTime,
+    bool useTimingFallbackPuppi = true)
 {
-  PUContentReco acc;//Start an empty accumulator struct.
-    const size_t nConst = jet.numberOfDaughters();
+    PUContentReco acc;
+
+    const auto pfIndices = getPFIndicesFromPatJet(jet);
+
     int recovered = 0;
     int failed = 0;
- 
-//  const size_t nConst = jet.numberOfDaughters();
-  for (size_t i = 0; i < nConst; ++i) {//Loop over all PF constituents of this jet.
-    const auto& c = *jet.daughter(i);
 
+    for (unsigned int idx : pfIndices) {
 
-    // Recover PackedCandidate pointer via sourceCandidatePtr
-    const pat::PackedCandidate* pf = nullptr;
-      if (c.numberOfSourceCandidatePtrs() > 0) {
-        auto ptr = c.sourceCandidatePtr(0);
-        if (ptr.isNull()) {
-        edm::LogWarning("JetTreeProducer") << "Found null Ptr at pf-pointer extraction; skipping.";
-    } else if (!ptr.isAvailable()) {
-        edm::LogWarning("JetTreeProducer") << "Found Ptr whose product is not available; skipping.";
-    } else {
-          pf = dynamic_cast<const pat::PackedCandidate*>(ptr.get());
-          }
-      }//If no index is available, try to backtrack to the PF candidate pointer.
+        if (idx >= pf_for_allCollections.size()) {
+            failed++;
+            continue;
+        }
 
-      if (pf) {
-          recovered++;
-      } else {
-          failed++;
-      }
-    updatePUContentReco(pf, acc, pvTime, useTimingFallbackPuppi);
+        const pat::PackedCandidate* pf = pf_for_allCollections[idx];
+
+        if (pf) {
+            recovered++;
+        } else {
+            failed++;
+        }
+
+        updatePUContentReco(pf, acc, pvTime, useTimingFallbackPuppi);
     }
 
- // One-line summary instead of spamming per-daughter
+#ifdef DEBUG_PUCONTENT
     if (failed > 0) {
-    #ifdef DEBUG_PUCONTENT
-            std::cout << "[PUContentRecoJet] Jet pt=" << jet.pt()
+        std::cout << "[PUContentRecoJet] Jet pt=" << jet.pt()
                   << " eta=" << jet.eta()
-                  << " recovered " << recovered << "/" << nConst
-                  << " PF daughters (" << failed << " failed)"
+                  << " recovered " << recovered << "/" << pfIndices.size()
+                  << " PF constituents (" << failed << " failed)"
                   << std::endl;
-    #endif
-     }  
+    }
+#endif
 
-  return acc;//he function returns
-}//End of PUContentReco computePUContentRecoJet()
+    return acc;
+}//End of PUContentReco computePUContentRecoJet{} 
 
 
 class JetTreeProducer : public edm::one::EDAnalyzer<edm::one::SharedResources> {
@@ -723,6 +766,16 @@ private:
   void beginJob() override;
   void analyze(const edm::Event&, const edm::EventSetup&) override;
   void endJob() override;
+
+private:
+    // --- helper function (DECLARATION)
+    void fillHSGenJets(const reco::GenJetCollection& genJets);
+
+    // --- branches
+    int nHSGenJets_;
+    std::vector<float> hsGenJet_pt_;
+    std::vector<float> hsGenJet_eta_;
+
   
   // --- jet and genjet ---
   edm::EDGetTokenT<std::vector<pat::Jet>> jetsToken_;
@@ -772,8 +825,10 @@ int nPUJets_loose_, nRecoJets_loose_;
 int nPUJets_time_, nRecoJets_time_;
 int nPUJets_time4D_, nRecoJets_time4D_;
 */
-
-
+  
+  std::vector<int> jetMatched_puppi_all_;     // RECO → GEN match flag
+  std::vector<int> genJetMatched_puppi_all_;  // GEN → RECO match flag
+  std::vector<int> genMatchedDen_puppi_all_;  // GEN → RECO match flag
   std::vector<int> jetIsHS_puppi_all_;
   std::vector<float> jetPt_puppi_all_;
   std::vector<float> jetAbsEta_puppi_all_;
@@ -781,6 +836,8 @@ int nPUJets_time4D_, nRecoJets_time4D_;
   std::vector<std::vector<unsigned int>> jet_pfIndices_puppi_all_;
   std::vector<float> jetResponse_PR_puppi_all_;
   std::vector<float> genPt_puppi_all_;
+  std::vector<float> genEta_puppi_all_;
+  std::vector<float> genEtaDen_puppi_all_;
   std::vector<float> puFracPt_algo_puppi_all_;
   std::vector<float> puFracCount_algo_puppi_all_;
   std::vector<float> puFracPt_truth_puppi_all_;
@@ -798,12 +855,17 @@ int nPUJets_time4D_, nRecoJets_time4D_;
 
 
 //  float jetResponse_ULv15;
+  std::vector<int> jetMatched_pfraw_all_;     // RECO → GEN match flag
+  std::vector<int> genJetMatched_pfraw_all_;  // GEN → RECO match flag
+  std::vector<int> genMatchedDen_pfraw_all_;  // GEN → RECO match flag
   std::vector<int> jetIsHS_pfraw_all_;
   std::vector<float> jetPt_pfraw_all_;
   std::vector<float> jetAbsEta_pfraw_all_;
   std::vector<float> jetPhi_pfraw_all_;
   std::vector<std::vector<unsigned int>> jet_pfIndices_pfraw_all_;
   std::vector<float> genPt_pfraw_all_;
+  std::vector<float> genEta_pfraw_all_;
+  std::vector<float> genEtaDen_pfraw_all_;
   std::vector<float> jetResponse_PR_pfraw_all_;
   std::vector<float> puFracPt_algo_pfraw_all_;
   std::vector<float> puFracCount_algo_pfraw_all_;
@@ -819,12 +881,17 @@ int nPUJets_time4D_, nRecoJets_time4D_;
   std::vector<float> puFracCount_pfraw_5leading_;
 */
 
+  std::vector<int> jetMatched_fromPV3_all_;     // RECO → GEN match flag
+  std::vector<int> genJetMatched_fromPV3_all_;  // GEN → RECO match flag
+  std::vector<int> genMatchedDen_fromPV3_all_;  // GEN → RECO match flag
   std::vector<int> jetIsHS_fromPV3_all_;
   std::vector<float> jetPt_fromPV3_all_;
   std::vector<float> jetAbsEta_fromPV3_all_;
   std::vector<float> jetPhi_fromPV3_all_;
   std::vector<std::vector<unsigned int>> jet_pfIndices_fromPV3_all_;
   std::vector<float> genPt_fromPV3_all_;
+  std::vector<float> genEta_fromPV3_all_;
+  std::vector<float> genEtaDen_fromPV3_all_;
   std::vector<float> jetResponse_PR_fromPV3_all_;
   std::vector<float> puFracPt_algo_fromPV3_all_;
   std::vector<float> puFracCount_algo_fromPV3_all_;
@@ -840,12 +907,17 @@ int nPUJets_time4D_, nRecoJets_time4D_;
   std::vector<float> puFracCount_fromPV3_5leading_;
 */
   
+  std::vector<int> jetMatched_tight_all_;     // RECO → GEN match flag
+  std::vector<int> genJetMatched_tight_all_;  // GEN → RECO match flag
+  std::vector<int> genMatchedDen_tight_all_;  // GEN → RECO match flag
   std::vector<int> jetIsHS_tight_all_;
   std::vector<float> jetPt_tight_all_;
   std::vector<float> jetAbsEta_tight_all_;
   std::vector<float> jetPhi_tight_all_;
   std::vector<std::vector<unsigned int>> jet_pfIndices_tight_all_;
   std::vector<float> genPt_tight_all_;
+  std::vector<float> genEta_tight_all_;
+  std::vector<float> genEtaDen_tight_all_;
   std::vector<float> jetResponse_PR_tight_all_;
   std::vector<float> puFracPt_algo_tight_all_;
   std::vector<float> puFracCount_algo_tight_all_;
@@ -861,12 +933,17 @@ int nPUJets_time4D_, nRecoJets_time4D_;
   std::vector<float> puFracCount_tight_5leading_;
 */
 
+  std::vector<int> jetMatched_loose_all_;     // RECO → GEN match flag
+  std::vector<int> genJetMatched_loose_all_;  // GEN → RECO match flag
+  std::vector<int> genMatchedDen_loose_all_;  // GEN → RECO match flag
   std::vector<int> jetIsHS_loose_all_;
   std::vector<float> jetPt_loose_all_;
   std::vector<float> jetAbsEta_loose_all_;
   std::vector<float> jetPhi_loose_all_;
   std::vector<std::vector<unsigned int>> jet_pfIndices_loose_all_;
   std::vector<float> genPt_loose_all_;
+  std::vector<float> genEta_loose_all_;
+  std::vector<float> genEtaDen_loose_all_;
   std::vector<float> jetResponse_PR_loose_all_;
   std::vector<float> puFracPt_algo_loose_all_;
   std::vector<float> puFracCount_algo_loose_all_;
@@ -881,13 +958,18 @@ int nPUJets_time4D_, nRecoJets_time4D_;
   std::vector<float> puFracCount_loose_5leading_;
 */
 
-  //For MTD-based jet clustering
+  //For MTD-based jet clustering 
+  std::vector<int> jetMatched_time_all_;     // RECO → GEN match flag
+  std::vector<int> genJetMatched_time_all_;  // GEN → RECO match flag
+  std::vector<int> genMatchedDen_time_all_;  // GEN → RECO match flag
   std::vector<int> jetIsHS_time_all_;
   std::vector<float> jetPt_time_all_;
   std::vector<float> jetAbsEta_time_all_;
   std::vector<float> jetPhi_time_all_;
   std::vector<std::vector<unsigned int>> jet_pfIndices_time_all_;
   std::vector<float> genPt_time_all_;
+  std::vector<float> genEta_time_all_;
+  std::vector<float> genEtaDen_time_all_;
   std::vector<float> jetResponse_PR_time_all_;
   std::vector<float> puFracPt_algo_time_all_;
   std::vector<float> puFracCount_algo_time_all_;
@@ -906,12 +988,17 @@ int nPUJets_time4D_, nRecoJets_time4D_;
 */
 
   //For 3D + MTD-based jet clustering=4D
+  std::vector<int> jetMatched_time4D_all_;     // RECO → GEN match flag
+  std::vector<int> genJetMatched_time4D_all_;  // GEN → RECO match flag
+  std::vector<int> genMatchedDen_time4D_all_;  // GEN → RECO match flag
   std::vector<int> jetIsHS_time4D_all_;
   std::vector<float> jetPt_time4D_all_;
   std::vector<float> jetAbsEta_time4D_all_;
   std::vector<float> jetPhi_time4D_all_;
   std::vector<std::vector<unsigned int>> jet_pfIndices_time4D_all_;
   std::vector<float> genPt_time4D_all_;
+  std::vector<float> genEta_time4D_all_;
+  std::vector<float> genEtaDen_time4D_all_;
   std::vector<float> jetResponse_PR_time4D_all_;
   std::vector<float> puFracPt_algo_time4D_all_;
   std::vector<float> puFracCount_algo_time4D_all_;
@@ -995,50 +1082,49 @@ int nPUJets_time4D_, nRecoJets_time4D_;
 // add to class members (inside class definition)
 
   // For jet-level efficiency & purity per collection
-  float efficiency_puppi_, purity_puppi_;
-  float efficiency_pfraw_, purity_pfraw_;//defined but not used
-  float efficiency_fromPV3_, purity_fromPV3_;//defined but not used
-  float efficiency_tight_, purity_tight_;
-  float efficiency_loose_, purity_loose_;
-  float efficiency_time_, purity_time_;//defined but not used
-  float efficiency_time4D_, purity_time4D_;//defined but not used
+  float efficiency_puppi_, effLossAmbig_puppi_, effWithAmbig_puppi_, mistag_puppi_, purity_puppi_;
+  float efficiency_pfraw_, effLossAmbig_pfraw_, effWithAmbig_pfraw_, mistag_pfraw_, purity_pfraw_;//defined but not used
+  float efficiency_fromPV3_, effLossAmbig_fromPV3_, effWithAmbig_fromPV3_, mistag_fromPV3_, purity_fromPV3_;//defined but not used
+  float efficiency_tight_, effLossAmbig_tight_, effWithAmbig_tight_, mistag_tight_, purity_tight_;
+  float efficiency_loose_, effLossAmbig_loose_, effWithAmbig_loose_, mistag_loose_, purity_loose_;
+  float efficiency_time_, effLossAmbig_time_, effWithAmbig_time_, mistag_time_, purity_time_;//defined but not used
+  float efficiency_time4D_, effLossAmbig_time4D_, effWithAmbig_time4D_, mistag_time4D_,purity_time4D_;//defined but not used
       
  
-  int totalRecoJets = 0;
+  int totalRecoJetsClean = 0;
   int totalPUJets = 0;
   float puJetFraction_all_ = 0;//Not saved
 
-  int totalRecoJets_puppi = 0; 
+  int totalRecoJetsClean_puppi = 0; 
   int totalPUJets_puppi = 0; 
   float  puJetFraction_puppi_all_ = 0;
 
 
-  int totalRecoJets_pfraw = 0; 
+  int totalRecoJetsClean_pfraw = 0; 
   int totalPUJets_pfraw = 0; 
   float puJetFraction_pfraw_all_ =0;
 
-  int totalRecoJets_fromPV3 = 0; 
+  int totalRecoJetsClean_fromPV3 = 0; 
   int totalPUJets_fromPV3 = 0; 
   float puJetFraction_fromPV3_all_ =0;
   
-  int totalRecoJets_tight = 0; 
+  int totalRecoJetsClean_tight = 0; 
   int totalPUJets_tight = 0; 
   float puJetFraction_tight_all_ = 0;
 
-  int totalRecoJets_loose = 0 ;
+  int totalRecoJetsClean_loose = 0 ;
   int totalPUJets_loose = 0 ; 
   float puJetFraction_loose_all_ =0; 
 
-
-  int totalRecoJets_time = 0; 
+  int totalRecoJetsClean_time = 0; 
   int totalPUJets_time = 0; 
   float puJetFraction_time_all_ =0;
 
-  int totalRecoJets_time4D = 0; 
+  int totalRecoJetsClean_time4D = 0; 
   int totalPUJets_time4D = 0; 
   float puJetFraction_time4D_all_ =0;
 
-};
+};//class JetTreeProducer : public edm::one::EDAnalyzer<edm::one::SharedResources> {
 
 
 JetTreeProducer::JetTreeProducer(const edm::ParameterSet& iConfig)//:
@@ -1066,6 +1152,12 @@ void JetTreeProducer::beginJob() {
   usesResource("TFileService");
   edm::Service<TFileService> fs_;
   tree_ = fs_->make<TTree>("JetTree", "JetTree");
+
+
+
+tree_->Branch("nHSGenJets", &nHSGenJets_, "nHSGenJets/I");
+tree_->Branch("hsGenJet_pt",  &hsGenJet_pt_);
+tree_->Branch("hsGenJet_eta", &hsGenJet_eta_);
 
 // --- For ΔR threshold tuning ---
 tree_->Branch("pf_dR_custom",   &pf_dR_custom_);
@@ -1100,11 +1192,16 @@ tree_->Branch("pf_match30",     &pf_match30_);
   tree_->Branch("nRecoJets_MTD",   &nRecoJets_time_,   "nRecoJets_MTD/I");
 */
 
+  tree_->Branch("jetMatched_puppi_all", &jetMatched_puppi_all_);
+  tree_->Branch("genJetMatched_puppi_all", &genJetMatched_puppi_all_);
   tree_->Branch("jetIsHS_puppi_all", &jetIsHS_puppi_all_);
   tree_->Branch("jetPt_puppi_all", &jetPt_puppi_all_);
   tree_->Branch("jetPhi_puppi_all", &jetPhi_puppi_all_);
   tree_->Branch("jet_pfIndices_puppi_all", &jet_pfIndices_puppi_all_);
   tree_->Branch("genPt_puppi_all", &genPt_puppi_all_);
+  tree_->Branch("genEta_puppi_all", &genEta_puppi_all_);
+  tree_->Branch("genEtaDen_puppi_all", &genEtaDen_puppi_all_);
+  tree_->Branch("genMatchedDen_puppi_all", &genMatchedDen_puppi_all_);
   tree_->Branch("jetResponse_PR_puppi_all", &jetResponse_PR_puppi_all_);
   tree_->Branch("jetAbsEta_puppi_all", &jetAbsEta_puppi_all_);  
   tree_->Branch("puFracPt_algo_puppi_all", &puFracPt_algo_puppi_all_);
@@ -1121,12 +1218,17 @@ tree_->Branch("pf_match30",     &pf_match30_);
   tree_->Branch("puFracCount_puppi_5leading", &puFracCount_puppi_5leading_);  
 */
   
+  tree_->Branch("jetMatched_pfraw_all", &jetMatched_pfraw_all_);
+  tree_->Branch("genJetMatched_pfraw_all", &genJetMatched_pfraw_all_);
   tree_->Branch("jetIsHS_pfraw_all", &jetIsHS_pfraw_all_);
   tree_->Branch("jetResponse_PR_pfraw_all", &jetResponse_PR_pfraw_all_);
   tree_->Branch("jetPt_pfraw_all", &jetPt_pfraw_all_);
   tree_->Branch("jetPhi_pfraw_all", &jetPhi_pfraw_all_);
   tree_->Branch("jet_pfIndices_pfraw_all", &jet_pfIndices_pfraw_all_);
   tree_->Branch("genPt_pfraw_all", &genPt_pfraw_all_);
+  tree_->Branch("genEta_pfraw_all", &genEta_pfraw_all_);
+  tree_->Branch("genEtaDen_pfraw_all", &genEtaDen_pfraw_all_);
+  tree_->Branch("genMatchedDen_pfraw_all", &genMatchedDen_pfraw_all_);
   tree_->Branch("jetAbsEta_pfraw_all", &jetAbsEta_pfraw_all_); 
   tree_->Branch("puFracPt_algo_pfraw_all", &puFracPt_algo_pfraw_all_);
   tree_->Branch("puFracCount_algo_pfraw_all", &puFracCount_algo_pfraw_all_);  
@@ -1142,12 +1244,17 @@ tree_->Branch("pf_match30",     &pf_match30_);
   tree_->Branch("puFracCount_pfraw_5leading", &puFracCount_pfraw_5leading_);  
 */
 
+  tree_->Branch("jetMatched_fromPV3_all", &jetMatched_fromPV3_all_);
+  tree_->Branch("genJetMatched_fromPV3_all", &genJetMatched_fromPV3_all_);
   tree_->Branch("jetIsHS_fromPV3_all", &jetIsHS_fromPV3_all_);
   tree_->Branch("jetResponse_PR_fromPV3_all", &jetResponse_PR_fromPV3_all_);
   tree_->Branch("jetPt_fromPV3_all", &jetPt_fromPV3_all_);
   tree_->Branch("jetPhi_fromPV3_all", &jetPhi_fromPV3_all_);
   tree_->Branch("jet_pfIndices_fromPV3_all", &jet_pfIndices_fromPV3_all_);
   tree_->Branch("genPt_fromPV3_all", &genPt_fromPV3_all_);
+  tree_->Branch("genEta_fromPV3_all", &genEta_fromPV3_all_);
+  tree_->Branch("genEtaDen_fromPV3_all", &genEtaDen_fromPV3_all_);
+  tree_->Branch("genMatchedDen_fromPV3_all", &genMatchedDen_fromPV3_all_);
   tree_->Branch("jetAbsEta_fromPV3_all", &jetAbsEta_fromPV3_all_); 
   tree_->Branch("puFracPt_algo_fromPV3_all", &puFracPt_algo_fromPV3_all_);
   tree_->Branch("puFracCount_algo_fromPV3_all", &puFracCount_algo_fromPV3_all_);  
@@ -1163,11 +1270,16 @@ tree_->Branch("pf_match30",     &pf_match30_);
   tree_->Branch("puFracCount_fromPV3_5leading", &puFracCount_fromPV3_5leading_);  
 */
 
+  tree_->Branch("jetMatched_tight_all", &jetMatched_tight_all_);
+  tree_->Branch("genJetMatched_tight_all", &genJetMatched_tight_all_);
   tree_->Branch("jetIsHS_tight_all", &jetIsHS_tight_all_);
   tree_->Branch("jetPt_tight_all", &jetPt_tight_all_);
   tree_->Branch("jetPhi_tight_all", &jetPhi_tight_all_);
   tree_->Branch("jet_pfIndices_tight_all", &jet_pfIndices_tight_all_);
   tree_->Branch("genPt_tight_all", &genPt_tight_all_);
+  tree_->Branch("genEta_tight_all", &genEta_tight_all_);
+  tree_->Branch("genEtaDen_tight_all", &genEtaDen_tight_all_);
+  tree_->Branch("genMatchedDen_tight_all", &genMatchedDen_tight_all_);
   tree_->Branch("jetResponse_PR_tight_all", &jetResponse_PR_tight_all_);
   tree_->Branch("jetAbsEta_tight_all", &jetAbsEta_tight_all_);
   tree_->Branch("puFracPt_algo_tight_all", &puFracPt_algo_tight_all_);
@@ -1184,6 +1296,8 @@ tree_->Branch("pf_match30",     &pf_match30_);
   tree_->Branch("puFracCount_tight_5leading", &puFracCount_tight_5leading_);  
 */
 
+  tree_->Branch("jetMatched_loose_all", &jetMatched_loose_all_);
+  tree_->Branch("genJetMatched_loose_all", &genJetMatched_loose_all_);
   tree_->Branch("jetIsHS_loose_all", &jetIsHS_loose_all_);
   tree_->Branch("jetResponse_PR_loose_all", &jetResponse_PR_loose_all_);
   tree_->Branch("jetAbsEta_loose_all", &jetAbsEta_loose_all_);
@@ -1191,6 +1305,9 @@ tree_->Branch("pf_match30",     &pf_match30_);
   tree_->Branch("jetPhi_loose_all", &jetPhi_loose_all_);
   tree_->Branch("jet_pfIndices_loose_all", &jet_pfIndices_loose_all_);
   tree_->Branch("genPt_loose_all", &genPt_loose_all_);
+  tree_->Branch("genEta_loose_all", &genEta_loose_all_);
+  tree_->Branch("genEtaDen_loose_all", &genEtaDen_loose_all_);
+  tree_->Branch("genMatchedDen_loose_all", &genMatchedDen_loose_all_);
   tree_->Branch("puFracPt_algo_loose_all", &puFracPt_algo_loose_all_);
   tree_->Branch("puFracCount_algo_loose_all", &puFracCount_algo_loose_all_);  
   tree_->Branch("puFracPt_truth_loose_all", &puFracPt_truth_loose_all_);
@@ -1205,6 +1322,8 @@ tree_->Branch("pf_match30",     &pf_match30_);
   tree_->Branch("puFracCount_loose_5leading", &puFracCount_tight_5leading_);  
 */
 
+  tree_->Branch("jetMatched_time_all", &jetMatched_time_all_);
+  tree_->Branch("genJetMatched_time_all", &genJetMatched_time_all_);
   tree_->Branch("jetIsHS_time_all", &jetIsHS_time_all_);
   tree_->Branch("jetResponse_PR_time_all", &jetResponse_PR_time_all_);
   tree_->Branch("jetAbsEta_time_all", &jetAbsEta_time_all_);
@@ -1212,6 +1331,9 @@ tree_->Branch("pf_match30",     &pf_match30_);
   tree_->Branch("jetPhi_time_all", &jetPhi_time_all_);
   tree_->Branch("jet_pfIndices_time_all", &jet_pfIndices_time_all_);
   tree_->Branch("genPt_time_all", &genPt_time_all_);
+  tree_->Branch("genEta_time_all", &genEta_time_all_);
+  tree_->Branch("genEtaDen_time_all", &genEtaDen_time_all_);
+  tree_->Branch("genMatchedDen_time_all", &genMatchedDen_time_all_);
   tree_->Branch("puFracPt_algo_time_all", &puFracPt_algo_time_all_);
   tree_->Branch("puFracCount_algo_time_all", &puFracCount_algo_time_all_);  
   tree_->Branch("puFracPt_truth_time_all", &puFracPt_truth_time_all_);
@@ -1228,6 +1350,8 @@ tree_->Branch("pf_match30",     &pf_match30_);
   tree_->Branch("puFracCount_time_5leading", &puFracCount_time_5leading_);  
 */
 
+  tree_->Branch("jetMatched_time4D_all", &jetMatched_time4D_all_);
+  tree_->Branch("genJetMatched_time4D_all", &genJetMatched_time4D_all_);
   tree_->Branch("jetIsHS_time4D_all", &jetIsHS_time4D_all_);
   tree_->Branch("jetResponse_PR_time4D_all", &jetResponse_PR_time4D_all_);
   tree_->Branch("jetAbsEta_time4D_all", &jetAbsEta_time4D_all_);
@@ -1235,6 +1359,9 @@ tree_->Branch("pf_match30",     &pf_match30_);
   tree_->Branch("jetPhi_time4D_all", &jetPhi_time4D_all_);
   tree_->Branch("jet_pfIndices_time4D_all", &jet_pfIndices_time4D_all_);
   tree_->Branch("genPt_time4D_all", &genPt_time4D_all_);
+  tree_->Branch("genEta_time4D_all", &genEta_time4D_all_);
+  tree_->Branch("genEtaDen_time4D_all", &genEtaDen_time4D_all_);
+  tree_->Branch("genMatchedDen_time4D_all", &genMatchedDen_time4D_all_);
   tree_->Branch("puFracPt_algo_time4D_all", &puFracPt_algo_time4D_all_);
   tree_->Branch("puFracCount_algo_time4D_all", &puFracCount_algo_time4D_all_);  
   tree_->Branch("puFracPt_truth_time4D_all", &puFracPt_truth_time4D_all_);
@@ -1337,20 +1464,19 @@ tree_->Branch("pf_match30",     &pf_match30_);
   tree_->Branch("pf_isHS", &pf_isHS);
   tree_->Branch("pf_fromPV", &pf_fromPV);
  
- 
-  float efficiency_puppi_, purity_puppi_;
-  float efficiency_pfraw_, purity_pfraw_;//defined but not used
-  float efficiency_fromPV3_, purity_fromPV3_;//defined but not used
-  float efficiency_tight_, purity_tight_;
-  float efficiency_loose_, purity_loose_;
-  float efficiency_time_, purity_time_;//defined but not used
-  float efficiency_time4D_, purity_time4D_;//defined but not used
+//  float efficiency_puppi_, mistag_puppi_, purity_puppi_;
+//  float efficiency_pfraw_, mistag_pfraw_, purity_pfraw_;//defined but not used
+//  float efficiency_fromPV3_, mistag_fromPV3_, purity_fromPV3_;//defined but not used
+//  float efficiency_tight_, mistag_tight_, purity_tight_;
+//  float efficiency_loose_, mistag_loose_, purity_loose_;
+//  float efficiency_time_, mistag_time_, purity_time_;//defined but not used
+//  float efficiency_time4D_, mistag_time4D_,purity_time4D_;//defined but not used
 
-  tree_->Branch("totalRecoJets_pfraw", &totalRecoJets_pfraw,"totalRecoJets_pfraw/I");
-  tree_->Branch("totalRecoJets_fromPV3", &totalRecoJets_fromPV3,"totalRecoJets_fromPV3/I");
-  tree_->Branch("totalRecoJets_tight", &totalRecoJets_tight,"totalRecoJets_tight/I");
-  tree_->Branch("totalRecoJets_loose", &totalRecoJets_loose,"totalRecoJets_loose/I");
-  tree_->Branch("totalRecoJets_time", &totalRecoJets_time,"totalRecoJets_time/I");
+  tree_->Branch("totalRecoJetsClean_pfraw", &totalRecoJetsClean_pfraw,"totalRecoJetsClean_pfraw/I");
+  tree_->Branch("totalRecoJetsClean_fromPV3", &totalRecoJetsClean_fromPV3,"totalRecoJetsClean_fromPV3/I");
+  tree_->Branch("totalRecoJetsClean_tight", &totalRecoJetsClean_tight,"totalRecoJetsClean_tight/I");
+  tree_->Branch("totalRecoJetsClean_loose", &totalRecoJetsClean_loose,"totalRecoJetsClean_loose/I");
+  tree_->Branch("totalRecoJetsClean_time", &totalRecoJetsClean_time,"totalRecoJetsClean_time/I");
   
   tree_->Branch("totalPUJets_puppi", &totalPUJets_puppi,"totalPUJets_puppi/I");
   tree_->Branch("totalPUJets_pfraw", &totalPUJets_pfraw,"totalPUJets_pfraw/I");
@@ -1369,18 +1495,45 @@ tree_->Branch("pf_match30",     &pf_match30_);
   tree_->Branch("puJetFraction_time4D_all", &puJetFraction_time4D_all_,"puJetFraction_time4D_all/F");
 
   tree_->Branch("efficiency_puppi", &efficiency_puppi_,"efficiency_puppi/F");
+  tree_->Branch("effLossAmbig_puppi", &effLossAmbig_puppi_,"effLossAmbig_puppi/F");
+  tree_->Branch("effWithAmbig_puppi", &effWithAmbig_puppi_,"effWithAmbig_puppi/F");
+  tree_->Branch("mistag_puppi", &mistag_puppi_,"mistag_puppi/F");
   tree_->Branch("purity_puppi", &purity_puppi_,"purity_puppi/F");
+
   tree_->Branch("efficiency_pfraw", &efficiency_pfraw_,"efficiency_pfraw/F");
+  tree_->Branch("effLossAmbig_pfraw", &effLossAmbig_pfraw_,"effLossAmbig_pfraw/F");
+  tree_->Branch("effWithAmbig_pfraw", &effWithAmbig_pfraw_,"effWithAmbig_pfraw/F");
+  tree_->Branch("mistag_pfraw", &mistag_pfraw_,"mistag_pfraw/F");
   tree_->Branch("purity_pfraw", &purity_pfraw_,"purity_pfraw/F");
+
   tree_->Branch("efficiency_fromPV3", &efficiency_fromPV3_,"efficiency_fromPV3/F");
+  tree_->Branch("effLossAmbig_fromPV3", &effLossAmbig_fromPV3_,"effLossAmbig_fromPV3/F");
+  tree_->Branch("effWithAmbig_fromPV3", &effWithAmbig_fromPV3_,"effWithAmbig_fromPV3/F");
+  tree_->Branch("mistag_fromPV3", &mistag_fromPV3_,"mistag_fromPV3/F");
   tree_->Branch("purity_fromPV3", &purity_fromPV3_,"purity_fromPV3/F");
+
   tree_->Branch("efficiency_tight", &efficiency_tight_,"efficiency_tight/F");
+  tree_->Branch("effLossAmbig_tight", &effLossAmbig_tight_,"effLossAmbig_tight/F");
+  tree_->Branch("effWithAmbig_tight", &effWithAmbig_tight_,"effWithAmbig_tight/F");
+  tree_->Branch("mistag_tight", &mistag_tight_,"mistag_tight/F");
   tree_->Branch("purity_tight", &purity_tight_,"purity_tight/F");
+
   tree_->Branch("efficiency_loose", &efficiency_loose_,"efficiency_loose/F");
+  tree_->Branch("effLossAmbig_loose", &effLossAmbig_loose_,"effLossAmbig_loose/F");
+  tree_->Branch("effWithAmbig_loose", &effWithAmbig_loose_,"effWithAmbig_loose/F");
+  tree_->Branch("mistag_loose", &mistag_loose_,"mistag_loose/F");
   tree_->Branch("purity_loose", &purity_loose_,"purity_loose/F");
+
   tree_->Branch("efficiency_time", &efficiency_time_,"efficiency_time/F");
+  tree_->Branch("effLossAmbig_time", &effLossAmbig_time_,"effLossAmbig_time/F");
+  tree_->Branch("effWithAmbig_time", &effWithAmbig_time_,"effWithAmbig_time/F");
+  tree_->Branch("mistag_time", &mistag_time_,"mistag_time/F");
   tree_->Branch("purity_time", &purity_time_,"purity_time/F");
+
   tree_->Branch("efficiency_time4D", &efficiency_time4D_,"efficiency_time4D/F");
+  tree_->Branch("effLossAmbig_time4D", &effLossAmbig_time4D_,"effLossAmbig_time4D/F");
+  tree_->Branch("effWithAmbig_time4D", &effWithAmbig_time4D_,"effWithAmbig_time4D/F");
+  tree_->Branch("mistag_time4D", &mistag_time4D_,"mistag_time4D/F");
   tree_->Branch("purity_time4D", &purity_time4D_,"purity_time4D/F");
 
   tree_->Branch("pf_indices_withTime", &pf_indices_withTime_);
@@ -1547,11 +1700,17 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   jetDeltaR_time_all_.clear();
   jetDeltaR_time4D_all_.clear();
 
+  jetMatched_puppi_all_.clear();
+  genJetMatched_puppi_all_.clear();
   jetIsHS_puppi_all_.clear();
   jetPt_puppi_all_.clear();
   jetPhi_puppi_all_.clear();
   jet_pfIndices_puppi_all_.clear();
   genPt_puppi_all_.clear();
+  genEta_puppi_all_.clear();
+  genEtaDen_puppi_all_.clear();
+  genMatchedDen_puppi_all_.clear();
+
   jetResponse_PR_puppi_all_.clear();
   jetAbsEta_puppi_all_.clear(); 
   puFracPt_algo_puppi_all_.clear(); 
@@ -1568,11 +1727,16 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   puFracCount_puppi_5leading_.clear();
 */
 
+  jetMatched_pfraw_all_.clear();
+  genJetMatched_pfraw_all_.clear();
   jetIsHS_pfraw_all_.clear();
   jetPt_pfraw_all_.clear();
   jetPhi_pfraw_all_.clear();
   jet_pfIndices_pfraw_all_.clear();
   genPt_pfraw_all_.clear();
+  genEta_pfraw_all_.clear();
+  genEtaDen_pfraw_all_.clear();
+  genMatchedDen_pfraw_all_.clear();
   jetResponse_PR_pfraw_all_.clear();
   jetAbsEta_pfraw_all_.clear();
   puFracPt_algo_pfraw_all_.clear(); 
@@ -1591,11 +1755,16 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
 */
 
 
+  jetMatched_fromPV3_all_.clear();
+  genJetMatched_fromPV3_all_.clear();
   jetIsHS_fromPV3_all_.clear();
   jetPt_fromPV3_all_.clear();
   jetPhi_fromPV3_all_.clear();
   jet_pfIndices_fromPV3_all_.clear();
   genPt_fromPV3_all_.clear();
+  genEta_fromPV3_all_.clear();
+  genEtaDen_fromPV3_all_.clear();
+  genMatchedDen_fromPV3_all_.clear();
   jetResponse_PR_fromPV3_all_.clear();
   jetAbsEta_fromPV3_all_.clear();
   puFracPt_algo_fromPV3_all_.clear(); 
@@ -1613,11 +1782,16 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   puFracCount_fromPV3_5leading_.clear();
 */
 
+  jetMatched_tight_all_.clear();
+  genJetMatched_tight_all_.clear();
   jetIsHS_tight_all_.clear();
   jetPt_tight_all_.clear();
   jetPhi_tight_all_.clear();
   jet_pfIndices_tight_all_.clear();
   genPt_tight_all_.clear();
+  genEta_tight_all_.clear();
+  genEtaDen_tight_all_.clear();
+  genMatchedDen_tight_all_.clear();
   jetResponse_PR_tight_all_.clear();
   jetAbsEta_tight_all_.clear();
   puFracPt_algo_tight_all_.clear(); 
@@ -1634,11 +1808,16 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   puFracCount_tight_5leading_.clear();
 */
   
+  jetMatched_loose_all_.clear();
+  genJetMatched_loose_all_.clear();
   jetIsHS_loose_all_.clear();
   jetPt_loose_all_.clear();
   jetPhi_loose_all_.clear();
   jet_pfIndices_loose_all_.clear();
   genPt_loose_all_.clear();
+  genEta_loose_all_.clear();
+  genEtaDen_loose_all_.clear();
+  genMatchedDen_loose_all_.clear();
   jetResponse_PR_loose_all_.clear();
   jetAbsEta_loose_all_.clear();
   puFracPt_algo_loose_all_.clear(); 
@@ -1655,11 +1834,16 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   puFracCount_loose_5leading_.clear();
 */
 
+  jetMatched_time_all_.clear();
+  genJetMatched_time_all_.clear();
   jetIsHS_time_all_.clear();
   jetPt_time_all_.clear();
   jetPhi_time_all_.clear();
   jet_pfIndices_time_all_.clear();
   genPt_time_all_.clear();
+  genEta_time_all_.clear();
+  genEtaDen_time_all_.clear();
+  genMatchedDen_time_all_.clear();
   jetResponse_PR_time_all_.clear();
   jetAbsEta_time_all_.clear();
   puFracPt_algo_time_all_.clear(); 
@@ -1679,11 +1863,16 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
 */
 
 
+  jetMatched_time4D_all_.clear();
+  genJetMatched_time4D_all_.clear();
   jetIsHS_time4D_all_.clear();
   jetPt_time4D_all_.clear();
   jetPhi_time4D_all_.clear();
   jet_pfIndices_time4D_all_.clear();
   genPt_time4D_all_.clear();
+  genEta_time4D_all_.clear();
+  genEtaDen_time4D_all_.clear();
+  genMatchedDen_time4D_all_.clear();
   jetResponse_PR_time4D_all_.clear();
   jetAbsEta_time4D_all_.clear();
   puFracPt_algo_time4D_all_.clear(); 
@@ -1714,9 +1903,14 @@ void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) 
   // Retrieve Genjet collection
   edm::Handle<std::vector<reco::GenJet>> genJetsHandle;
   iEvent.getByToken(genJetToken_,genJetsHandle);
+  // True genjet counting
   if (!genJetsHandle.isValid()) {
-    edm::LogError("JetTreeProducer") << "Missing input: genJetsToken";
+      edm::LogError("JetTreeProducer") << "Missing input: genJetsToken";
+      nHSGenJets_ = -1;//or 0   
+      return; //If necessary
   }
+  fillHSGenJets(*genJetsHandle);
+ 
 
  //PF->GEN association
   edm::Handle<edm::Association<std::vector<reco::GenParticle>>> pfToGenAssoc;
@@ -1822,6 +2016,12 @@ bool hasGenZ = (genvertex_source != "fallback_zero");
   edm::Handle<std::vector<pat::PackedGenParticle>> genpHandle;
   iEvent.getByToken(genParticlesTokenMiniAOD_, genpHandle);
 
+
+  if (!genpHandle.isValid()) {
+      edm::LogError("JetTreeProducer") << "Missing packedGenParticles";
+      return;
+  }
+
  // Convert Handle → Reference (NECESSARY for weighted vz)
   const std::vector<pat::PackedGenParticle>& packedGenParticles = *genpHandle;
 
@@ -1880,16 +2080,6 @@ bool hasGenZ = (genvertex_source != "fallback_zero");
   pv_ndof_.clear();
   pv_nTracks_.clear(); 
 
-//Store all primary vertices in a vector
-    for (const auto& vtx:reco_pvs) {
-    pv_x_.push_back(vtx.x());
-    pv_y_.push_back(vtx.y());
-    pv_z_.push_back(vtx.z());
-    pv_t_.push_back(vtx.t());
-    pv_chi2_.push_back(vtx.chi2());
-    pv_ndof_.push_back(vtx.ndof());
-    pv_nTracks_.push_back(vtx.nTracks());
-   }
 
 
   // Fill beam spot information
@@ -1901,15 +2091,28 @@ bool hasGenZ = (genvertex_source != "fallback_zero");
 
   // Fill first primary vertex variables
   if (!reco_pvs.empty()) {
-     const reco::Vertex& firstPV = reco_pvs[0];
+     const reco::Vertex& pv = reco_pvs[0];
 
-     pvs_x_ = firstPV.x();
-     pvs_y_ = firstPV.y();
-     pvs_z_ = firstPV.z();
-     pvs_t_ = firstPV.t();
-     pvs_TimeErr_=firstPV.tError();
+     pvs_x_ = pv.x();
+     pvs_y_ = pv.y();
+     pvs_z_ = pv.z();
+     pvs_t_ = pv.t();
+     pvs_TimeErr_=pv.tError();
    }
+  
+  const reco::Vertex& pv = reco_pvs[0];//OK,3D point (math::XYZPoint),3D point,not a single z value.
   pvs_tSig_=pvs_t_/pvs_TimeErr_;
+
+//Store all primary vertices in a vector
+    for (const auto& vtx:reco_pvs) {
+    pv_x_.push_back(vtx.x());
+    pv_y_.push_back(vtx.y());
+    pv_z_.push_back(vtx.z());
+    pv_t_.push_back(vtx.t());
+    pv_chi2_.push_back(vtx.chi2());
+    pv_ndof_.push_back(vtx.ndof());
+    pv_nTracks_.push_back(vtx.nTracks());
+   }
 
   // Fill generator particle z-positions
   if (genpVec.empty()) {
@@ -1926,6 +2129,17 @@ bool hasGenZ = (genvertex_source != "fallback_zero");
   int pf_coll_index = 0;
   for (size_t iPF = 0; iPF < pf_coll.size(); ++iPF) {
   nPF_total++;
+
+    if (iPF < 10) {  // limit output
+    const auto& pf = pf_coll[iPF];
+    std::cout << "[PF LOOP] iPF=" << iPF
+              << " pt=" << pf.pt()
+              << " eta=" << pf.eta()
+              << " phi=" << pf.phi()
+              << " time=" << pf.time()
+              << std::endl;
+    }//End of if (iPF < 10)
+  
 
 //  for (const auto& pf : pf_coll) {
 //  for (size_t i = 0; i < pf_coll.size(); ++i)
@@ -1944,7 +2158,7 @@ bool hasGenZ = (genvertex_source != "fallback_zero");
 
     // inside PF candidate loop, before any use:
     float dtSig = 999.0f;               // sentinel (invalid)
-    const float dtSigCut = 3.0f;        // tune this threshold (was missing)
+    const float dtSigCut = 5.0f;        // tune this threshold (was missing)
  
     bool isDisplaced = false;//To keep displaced tracks
     bool hasValidTime = false;
@@ -1956,17 +2170,7 @@ bool hasGenZ = (genvertex_source != "fallback_zero");
     int pvIndex = pf.vertexRef().key();
     auto pvQuality = pf.pvAssociationQuality();
 
-//    std::cout << "PF[" << iPF << "] PV index = " << pf.vertexRef().key()
-//              << " quality = " << pf.pvAssociationQuality() << std::endl;
-//    if (pvIndex != 0) { std::cout <<"isPU = true"<< std::endl;}
-//    else {std::cout <<"isPU = false"<<std::endl;}
-//    std::cout << "pT=" << pf.pt()
-//          << " pvAssocQuality=" << pf.pvAssociationQuality()
-//          << " fromPV=" << pf.fromPV()
-//          << std::endl;
-    //End of Diagnostic print of associatedPVIndex
-
-    pf_for_allCollections.push_back(&pf);
+    pf_for_allCollections.push_back(&pf);//Index matching
     pf_pt.push_back(pf.pt());
     pf_eta.push_back(pf.eta());
     pf_phi.push_back(pf.phi());
@@ -2082,75 +2286,6 @@ bool hasGenZ = (genvertex_source != "fallback_zero");
     pf_match25_.push_back( (dR_value>=0.f && dR_value<0.25) );
     pf_match30_.push_back( (dR_value>=0.f && dR_value<0.30) );
 
-  // === Diagnostic: show gen candidates and cut-flow per PF ===
-      #ifdef DEBUG_MATCH_DETAIL
-        static int dbgEventCount = 0;
-        static int dbgPFCount = 0;
-        const int maxEventsToPrint = 3;
-        const int maxPFsToPrintPerEvt = 10;
-        if (iEvent.id().event() < maxEventsToPrint && dbgPFCount < maxPFsToPrintPerEvt) {
-          ++dbgPFCount;
-
-          std::cout << "[DiagMatchSummary] evt=" << iEvent.id().event()
-                    << " PF[" << iPF << "] pt=" << pf.pt()
-                    << " eta=" << pf.eta()
-                    << " charge=" << pf.charge()
-                    << " pf_pdg=" << pf.pdgId()
-                    << " bestDR=" << dR_value
-                    << " matched=" << (matchedGen ? 1 : 0)
-                    << std::endl;
-
-    // --- Re-run local diagnostic over genpVec (read-only) ---
-          int n_before = (int)genpVec.size();
-          int n_passFlag = 0, n_passDR = 0, n_passPDG = 0;
-          float myDRcut = (pf.charge() == 0 ? 1.0 : 0.4);
-          const pat::PackedGenParticle* bestLocalGen = nullptr;
-          float bestLocalDR = 999.f;
-
-          int idx = 0;
-          for (const auto &gen : genpVec) {
-            bool fromHard = gen.fromHardProcessFinalState();
-            bool isPrompt = gen.isPromptFinalState();
-            bool isLastCopy = gen.statusFlags().isLastCopy();
-            int pdg = gen.pdgId();
-            float dR = reco::deltaR(pf.eta(), pf.phi(), gen.eta(), gen.phi());
-            bool passFlag = (pf.charge() != 0)
-                            ? (fromHard || isPrompt ||
-                              gen.isDirectHardProcessTauDecayProductFinalState() ||
-                              gen.isDirectPromptTauDecayProductFinalState())
-                            : isLastCopy;
-            bool passPDG = (pf.charge() != 0)
-                            ? (std::abs(pf.pdgId()) == std::abs(pdg))
-                            : (std::abs(pdg) == 22 || std::abs(pdg) == 111 ||
-                               std::abs(pdg) == 130 || std::abs(pdg) == 2112);
-
-            if (passFlag) ++n_passFlag;
-            if (passFlag && dR <= myDRcut) ++n_passDR;
-            if (passFlag && dR <= myDRcut && passPDG) ++n_passPDG;
-            if (dR < bestLocalDR) { bestLocalDR = dR; bestLocalGen = &gen; }
-
-      // mark best candidate inline
-            bool isBest = (&gen == bestLocalGen);
-            std::cout << (isBest ? " >>" : "   ")
-                      << " gen[" << idx << "] pdg=" << pdg
-                      << " dR=" << std::fixed << std::setprecision(3) << dR
-                      << " fromHard=" << fromHard
-                      << " isPrompt=" << isPrompt
-                      << " isLastCopy=" << isLastCopy
-                      << std::endl;
-            ++idx;
-          }//End of for (const auto &gen : genpVec)
-
-          std::cout << "[CutFlow] total=" << n_before
-                    << " passFlag=" << n_passFlag
-                    << " passFlag+DR=" << n_passDR
-                    << " passFlag+DR+PDG=" << n_passPDG
-                    << " bestLocalDR=" << bestLocalDR
-                    << std::endl;
-         }//End of if (iEvent.id().event() < maxEventsToPrint && dbgPFCount < maxPFsToPrintPerEvt)
-   #endif // DEBUG_MATCH_DETAIL
-  // === End of diagnostic block ===
-
 
       if (isHS_truth) {
       nPF_matched++;
@@ -2168,13 +2303,13 @@ bool hasGenZ = (genvertex_source != "fallback_zero");
       edm::LogWarning("JetTreeProducer") << "No packedGenParticles found in this event.";
       dR_value = -99.f;
        // if genpVec empty, no match possible
-        pf_genPt_custom_.push_back(-1.f);
+        pf_genPt_custom_.push_back(-99.f);//-1.f
         pf_genEta_custom_.push_back(-99.f);
         pf_genPhi_custom_.push_back(-99.f);
         pf_genPdgId_custom_.push_back(0);
-        pf_genDR_custom_.push_back(-1.f);//-99f?
+        pf_genDR_custom_.push_back(-99.f);//-1ff?
         custom_gen_index = -1;
-        pf_isPU_truth.push_back(0);
+        pf_isPU_truth.push_back(1);
         pf_isHS_truth.push_back(0);
         nPF_unmatched++;
       }//if (!genpVec.empty())
@@ -2190,127 +2325,85 @@ bool hasGenZ = (genvertex_source != "fallback_zero");
 
     //==========PF HS/PU check End====================i
 
-
-#ifdef DEBUG_PU_DIAG
-  // === Temporary counters (declare static so they persist between events)
-  static unsigned int totalPF_all = 0;
-  static unsigned int totalPF_algoPU = 0;
-  static unsigned int totalPF_truthPU = 0;
-  static unsigned int totalPF_algoMis = 0;  // algorithmic misclassification
-  static unsigned int totalPF_truthMis = 0; // truth-based misclassification
-  static unsigned int nEventsChecked = 0;
-  edm::Handle<std::vector<reco::Vertex>> pv_handle;
-  iEvent.getByToken(pvsToken_, pv_handle);
-  const size_t nPV = pv_handle.isValid() ? pv_handle->size() : 0;
-
-  // --- Only run this diagnostic for no-PU samples (nPV <= 1)
-  if (nPV <= 1) {
-
-    // Local event counters
-    unsigned int nPF_algoPU = 0, nPF_truthPU = 0, nPF_total = 0;
-    unsigned int nMis_algo = 0, nMis_truth = 0;
-
-    for (size_t iPF = 0; iPF < pf_coll.size(); ++iPF) {
-      const auto& pf = (pf_coll)[iPF];
-      bool algoPU   = pf_isPU_algo[iPF];
-      bool truthPU  = pf_isPU_truth[iPF];
-      bool misAlgo  = (algoPU != truthPU); // mismatch between algo & truth classification
-
-      ++nPF_total;
-      if (algoPU) ++nPF_algoPU;
-      if (truthPU) ++nPF_truthPU;
-      if (misAlgo) ++nMis_algo;
-
-      // Print first few PFs for inspection
-      if (iPF < 5 && iEvent.id().event() < 10) {
-        std::cout << "[DiagPF] evt=" << iEvent.id().event()
-                  << " PF[" << iPF << "] pt=" << pf.pt()
-                  << " eta=" << pf.eta()
-                  << " charge=" << pf.charge()
-                  << " fromPV=" << pf.fromPV()
-                  << " pvAssocQ=" << pf.pvAssociationQuality()
-                  << " algoPU=" << algoPU
-                  << " truthPU=" << truthPU
-                  << std::endl;
-      }//End of if (iPF < 5 && iEvent.id().event() < 10)
-    }//End of for (size_t iPF = 0; iPF < pfcands->size(); ++iPF)
-
-/*
-//============ End of PF loop - diagnostic summary========================
-
-float frac_matched_all = (nPF_total > 0) ? float(nPF_matched)/nPF_total : 0.f;
-float frac_matched_ch  = (nPF_charged > 0) ? float(nPF_charged_matched)/nPF_charged : 0.f;
-float frac_matched_neu = (nPF_neutral > 0) ? float(nPF_neutral_matched)/nPF_neutral : 0.f;
-
-
-std::cout << std::fixed << std::setprecision(2);
-std::cout << "[DiagPF] Event " << iEvent.id().event()
-          << " | total=" << nPF_total
-          << " matched=(=isHS_truth)" << nPF_matched
-          << " (" << 100*frac_matched_all << "%)"
-          << " | charged=" << nPF_charged << " (" << 100*frac_matched_ch << "% matched)"
-          << " | neutral=" << nPF_neutral << " (" << 100*frac_matched_neu << "% matched)"
-          << std::endl;
-*/
-
-    // Event-level fractions
-    float frac_algoPU = (nPF_total > 0) ? float(nPF_algoPU) / nPF_total : 0;
-    float frac_truthPU = (nPF_total > 0) ? float(nPF_truthPU) / nPF_total : 0;
-    float frac_mis = (nPF_total > 0) ? float(nMis_algo) / nPF_total : 0;
-
-    std::cout << std::fixed << std::setprecision(3)
-              << "[DiagSummary] evt=" << iEvent.id().event()
-              << " nPF=" << nPF_total
-              << " algoPU=" << frac_algoPU * 100 << "%"
-              << " truthPU=" << frac_truthPU * 100 << "%"
-              << " misAlgo(algoPU != truthPU)=" << frac_mis * 100 << "%"
-              << std::endl;
-
-    // Update global counters
-    totalPF_all += nPF_total;
-    totalPF_algoPU += nPF_algoPU;
-    totalPF_truthPU += nPF_truthPU;
-    totalPF_algoMis += nMis_algo;
-    ++nEventsChecked;
-
-  }//End of if (nPV <= 1) 
-
-  // --- Print global average every 50 events
-  if (nEventsChecked % 50 == 0 && totalPF_all > 0) {
-    float avg_algoPU >+(abs(dz)<0.03&&dzSig<0.2) = 100.0f * totalPF_algoPU  / totalPF_all;
-    float avg_truthPU = 100.0f * totalPF_truthPU / totalPF_all;
-    float avg_mis     = 100.0f * totalPF_algoMis / totalPF_all;
-    std::cout << "[DiagGlobal] after " << nEventsChecked << " events: "
-              << " avg_algoPU=" << avg_algoPU << "%"
-              << " avg_truthPU=" << avg_truthPU << "%"
-              << " avg_mis=" << avg_mis << "%"
-              << std::endl;
-  }//Enf of if (nEventsChecked % 50 == 0 && totalPF_all > 0) 
-#endif
+    if (!isInMTD) continue;
 
     // Common PseudoJet for dz-based clustering
     fastjet::PseudoJet pj(pf.px(), pf.py(), pf.pz(), pf.energy());
-//    int pf_coll_index = &pf - &pf_coll[0]; // index relative to pf_coll
-//    pj.set_user_index(pf_coll_index);// link PF index    
-    pj.set_user_index(static_cast<int>(iPF)); // simpler and safe   
-    fjInputs_raw.push_back(pj);//keep global-indexed PF for raw jets
-
+    pj.set_user_index(static_cast<int>(iPF)); //KEY of global intexing,Index matching  
+    fjInputs_raw.push_back(pj);//keep global-indexed PF for raw jets, Index matching
+   //=>This PseudoJet corresponds to PF candidate at index i in pf_for_allCollections
+    if (iPF < 10) {
+        std::cout << "  -> PseudoJet user_index = "
+                  << pj.user_index() << std::endl;
+    }//End of if (iPF < 10)
+    
     if (pf.hasTrackDetails() && isCharged) {//For charged particle
        ++N_charged;
-//      bool isHS = (pf.fromPV() > 1);  // Not correct definidtion fo isHS, fromPV: 3 = tightly associated to PV
-//      if (isHS) ++N_HS_total;
 
-      float dz     = pf.dz();
-      float dzErr  = pf.dzError();
+      pf_keepAlways.push_back(keepAlways ? 1 : 0);
+      if (keepAlways) {// const bool keepAlways = (fromPV == 3);
+        fjInputs_fromPV3.push_back(pj);
+        ++N_selected_fromPV3;        
+      }//End of if (keepAlways)
+      
+      float dz     = pf.dz(pv.position());//z(track) − z(primary vertex):dz of track with respect to the track reference point:beam spot orbeam spot,It is NOT guaranteed to be the reconstructed primary vertex.
+      float dzErr = std::sqrt(
+          pf.dzError()*pf.dzError() +//track uncertainty
+          pv.zError()*pv.zError()//vertex uncertainty
+      );//
       float dzSig  = (dzErr > 0) ? dz / dzErr : 999;
       isDisplaced = (std::abs(dz) > 0.05);//To keep displaced tracks
-      
       pf_dxy.push_back(pf.dxy());
       pf_dz.push_back(dz);
       pf_dzError.push_back(dzErr);
-      pf_dzSig.push_back(dzSig);  
+      pf_dzSig.push_back(dzSig);
+      
+
+      //PF track to Primary Vetex Association check
+      //fromPV: 0=PU, 1=loosely PV, 2:from PV, 3:highly quality PV
+      //if (pf.pvAssociationQuality() < pat::PackedCandidate::UsedInFitTight)continue;
+
+      if(pf.fromPV()<=1)continue;//Fitering PF candidates using vertex association.
+
+      //dz:mean -3.1 X 10(-6), sigma:0.010cm
+      //dzSig: mean -2.1X 10 (-6), sigma: 0.073 
+      float dzCutBase=0.14;//0.05/0.14     
+      float dzCutLoose=0.5;//0.05/0.01     
+      float dzCutTight=0.1;//0.03/0.002     
+
+      float dzErrCutBase=0.0225;//0.05/0.0225     
+      float dzErrCutLoose=0.017;//0.05/0.017
+      float dzErrCutTight=0.014;//0.03/0.014     
+
+      float dzSigCutBase=3;//0.2/3    
+      float dzSigCutLoose=2.15;//0.2/2.15    
+      float dzSigCutTight=1.65;//0.5/1.65
+      bool passesBaseCut = (std::abs(dz) < dzErrCutBase && dzSig < dzSigCutBase);//3D loos selection
+      bool passesLooseCut = (std::abs(dz) < dzCutLoose && dzSig < dzSigCutLoose);//3D loos selection
+      bool passesTightCut = (std::abs(dz) < dzCutTight && dzSig < dzSigCutTight);//3D tight selection
+
+
+//    if (std::abs(dz) < 0.05 && dzSig < 0.5) {//Old Loose Condition
+    if (std::abs(dz) < 1) {//dZ Condition
  
+ 
+      if (std::abs(dz)<=dzCutLoose) {//only dzcut 
+        fjInputs_loose.push_back(pj);
+        ++N_selected_loose;
+      //  if (isHS) ++N_selected_HS_loose;
+      }//End of if (passesLooseCut)
+
+      if (std::abs(dz)<=dzCutTight) {
+        fjInputs_tight.push_back(pj);
+        ++N_selected_tight;
+       // if (isHS) ++N_selected_HS_tight;
+      }//End of if (passesTightCut)
+
+    }//End of if (std::abs(dz) < 1) {}//dZ conditon dicupled with dt condition
+    
       // compute only if timing is valid:
+      if (pf.timeError() <= 0 || !std::isfinite(pf.time())) continue;
+
       float t = pf.time();//nanoseconds. pf.time=t_track_i -pvs_t
       float tErr = pf.timeError();//nanoseconds
       float tSig=pf.time()/pf.timeError();
@@ -2320,8 +2413,8 @@ std::cout << "[DiagPF] Event " << iEvent.id().event()
       hasValidTime = (
           isInMTD &&        //Ensures only trust time info(in MTD acceptance)
           tErr > 0 &&
-          tErr < 0.20f      // Conservative threshold (30â50 ps typical)
-      //    std::abs(t) <10  // sanity check: time should be < 10 ns, change from 100 to 10=>Selection result not changed, 10= 10,000 ps.
+          tErr < 0.1f    //old:tErr < 0.2f, Conservative threshold (30â50 ps typical)
+//          std::abs(t) <1  //old:abs(t) <1, sanity check: time should be < 10 ns, change from 100 to 10=>Selection result not changed, 10= 10,000 ps.
       );
 
       pvHasValidTime =  (
@@ -2338,23 +2431,23 @@ std::cout << "[DiagPF] Event " << iEvent.id().event()
       if (hasValidTime && pvHasValidTime) {
       //Safe to use time:MTD time resolution ≈ 30–40 picoseconds = 0.03–0.04 nanoseconds.
       //!!!pf.time=t_track -pvs_t: It is the time residual relative to the primary vetex.
-//      if (pvHasValidTime) {
-        dt = t - pvs_t_;//convert ns → ps=dt * 1000.0;=>dt=t_track-2(pvs_t);!No physics meaning
+        dt = t - pv.t();//convert ns → ps=dt * 1000.0;=>dt=t_track-2(pvs_t);!No physics meaning
         dtErr =std::sqrt( tErr*tErr + pvs_TimeErr_*pvs_TimeErr_ );
         dtSig = dt/dtErr;
-//        dtSig = std::abs(dt) / std::sqrt(tErr*tErr + pvs_TimeErr_*pvs_TimeErr_);
 
-//-------------- Timed PF  check prints-------
-        edm::LogPrint("TimeDebug") 
-              << "PF " << iPF << " Accepted T. PF1"
-              << " time=" << pf.time() 
-              << " terr=" << pf.timeError() 
-              << " PV_time=" << pvs_t_ 
-              << " PV_timeErr=" << pvs_TimeErr_ 
-              << " dt(time-PV_time)=" <<dt
-              << " dtErr=" <<dtErr
-              << " dtSig=" <<dtSig;
-    
+//        dtSig = std::abs(dt) / std::sqrt(tErr*tErr + pvs_TimeErr_*pvs_TimeErr_);
+//           float dzCutLoose=2;//0.05
+        float dtCutBase=1.62;//0.03
+        float dtCutLoose=0.4;//0.03
+        float dtCutTight=0.2;//0.03
+
+        float dtErrCutBase=0.071;//0.03
+        float dtErrCutLoose=0.044;//0.03
+        float dtErrCutTight=0.039;//0.03
+
+        float dtSigCutBase=3;//0.2/2
+        float dtSigCutLoose=1.5;//0.2/1.5
+        float dtSigCutTight=1;//0.5/1
 
         // Save commone PF-level "timed" PF
         pf_time.push_back(pf.time());
@@ -2366,17 +2459,28 @@ std::cout << "[DiagPF] Event " << iEvent.id().event()
         
         // Save PF index (ONCE)
         pf_indices_withTime_.push_back(iPF);//global PF indices.
+
+      bool keepDisplaced = (isDisplaced && hasValidTime);//4D selection
+      bool hasTimeCompatibleWithPV= (std::abs(dz)<=dzCutLoose)&&hasValidTime && pvHasValidTime &&(dt<dtCutLoose)&&(dtSig<dtSigCutBase);//track +time
+      bool passes4D = (std::abs(dz)<=dzCutTight)&&hasValidTime && pvHasValidTime&&(dt<dtCutTight)&&(dtSig<dtSigCutBase);//tract_resolution+time_resolution      
+
+      pf_keepDisplaced.push_back(keepDisplaced ? 1 : 0);
+      pf_hasTimeCompatibleWithPV.push_back(hasTimeCompatibleWithPV ? 1 : 0);
+
+      if (hasTimeCompatibleWithPV) {//track +time
+        // Reuse the same PseudoJet (already has global user_index)
+        fastjet::PseudoJet pj_time = pj; // copy keeps iPF index
+        fjInputs_time.push_back(pj_time);
+
+      }//End of if (hasTimeCompatibleWithPV)//time+loosecut
+
+      if (passes4D) { //tract_resolution+time_resolution
+        fastjet::PseudoJet pj_time4D = pj; // copy keeps iPF index
+        fjInputs_time4D.push_back(pj_time4D);
+        pf_for_time.push_back(&pf);
+      }//End of if (passes4D),time+tightcut
   
-        // Optional: log debug info
-//        edm::LogWarning("TimingCheck")
-//        << "PF with eta = " << eta
-//        << " has timing info (t = " << t << " ns, error = " << tErr << " ns)"
-//        << " ns, dtSig=" << dtSig;
-//        << " outside MTD acceptance!";
       } else {
-//        dt    = std::numeric_limits<float>::quiet_NaN();
-//        dtErr = std::numeric_limits<float>::quiet_NaN();
-//        dtSig = std::numeric_limits<float>::quiet_NaN();
          dt =    999;
          dtErr = 999;
          dtSig = 999;      
@@ -2388,115 +2492,14 @@ std::cout << "[DiagPF] Event " << iEvent.id().event()
         pf_dtErr.push_back(999);
         pf_dtSig.push_back(999);
 
-//        edm::LogVerbatim("JetTreeProducer::TimeDebug")
-//          << "PF with eta=" << eta_ << ", pt=" << pt 
-//          << " has INVALID time (time=" << t
-//          << ", error=" << tErr << ")";
-      }//end of if (hasValidTime&& pvHasValidTime) else {}
-
-      //dz:mean -3.1 X 10(-6), sigma:0.010cm
-      //dzSig: mean -2.1X 10 (-6), sigma: 0.073 
-      float dzCut=0.05;     
-      float dzSigCut=0.5;     
-      bool passesTightCut = (std::abs(dz) < 0.03 && dzSig < 0.2);//3D tight selection
-      bool passesLooseCut = (std::abs(dz) < 0.05 && dzSig < 0.5);//3D loos selection
-      bool keepDisplaced = (isDisplaced && hasValidTime);//4D selection
-      bool hasTimeCompatibleWithPV= hasValidTime && pvHasValidTime && (std::abs(dtSig) < dtSigCut);//dtSigCut = 3.0f
-      bool passes3D = (std::abs(dz) < dzCut) && (std::abs(dzSig) < dzSigCut);
-//      bool passes4D = passes3D && hasValidTime && (std::abs(dtSig) < dtSigCut);//dtSigCut = 3.0f;      
-      bool passes4D = passesTightCut && hasTimeCompatibleWithPV;//dzSig<0.2 + dtSigCut = 3.0f;      
-
-      pf_passesTightCut.push_back(passesTightCut ? 1 : 0);
-      pf_passesLooseCut.push_back(passesLooseCut ? 1 : 0);
-      pf_keepAlways.push_back(keepAlways ? 1 : 0);
-      pf_keepDisplaced.push_back(keepDisplaced ? 1 : 0);
-      pf_hasTimeCompatibleWithPV.push_back(hasTimeCompatibleWithPV ? 1 : 0);
-      pf_passes3D.push_back(passesLooseCut ? 1 : 0);
-      pf_passes4D.push_back(passesLooseCut ? 1 : 0);
-
-      if (!hasTimeCompatibleWithPV) {
-//          edm::LogPrint("TimeDebug") 
-//              << "PF " << iPF 
-//              << " rejected: time=" << pf.time() 
-//              << " terr=" << pf.timeError() 
-//              << " eta=" << pf.eta();
-       } else {
-//          edm::LogPrint("TimeDebug") 
-//              << "PF " << iPF << " accepted for time jets.";
-      }//End of (!hasTimeCompatibleWithPV) else{}
-
-      if (keepAlways) {// const bool keepAlways = (fromPV == 3);
-//      if (keepAlways&&hasValidTime && (std::abs(dtSig) < dtSigCut)) {//To save track has large dz,4D selection
-        fjInputs_fromPV3.push_back(pj);
-        ++N_selected_fromPV3;
-        
-       // if (isHS) ++N_selected_HS_tight;
-      }//End of if (keepAlways)
-
-      if (passesLooseCut) {
-//      if (passesLooseCut&&hasValidTime && (std::abs(dtSig) < dtSigCut) {//To save track has large dz, 4D selection
-        fjInputs_loose.push_back(pj);
-        ++N_selected_loose;
-      //  if (isHS) ++N_selected_HS_loose;
-      }//End of if (passesLooseCut)
-
-      if (passesTightCut) {
-//      if (passesTightCut&&hasValidTime && (std::abs(dtSig) < dtSigCut) {//To save track has large dz,4D selection
-        fjInputs_tight.push_back(pj);
-        ++N_selected_tight;
-       // if (isHS) ++N_selected_HS_tight;
-      }//End of if (passesTightCut)
-
-        // MTD-based selection
-//      if (pf.isTimeValid() && pf.timeError() < 0.05) {//pat::PackedCandidate does not have a method called .isTimeValid()
-//      if (hasValidTime) {
-      if (hasTimeCompatibleWithPV) {//Only Time,PV compatibility should be assessed at jet level, not PF level.
-
-      // create a local copy if it need separate UserInfo, but keep the same index
-//      pj_time.set_user_index(pf_for_time.size());//local index bug
-//      pj_time.set_user_index(static_cast<int>(iPF));//index back to PackedCandidate
-//      fastjet::PseudoJet pj_time(pf.px(), pf.py(), pf.pz(), pf.energy());
-
-        // Reuse the same PseudoJet (already has global user_index)
-        fastjet::PseudoJet pj_time = pj; // copy keeps iPF index
-        fjInputs_time.push_back(pj_time);
-//        pf_for_time.push_back(&pf);
-
-//-------------- Timed PF  check prints-------
-        edm::LogPrint("TimeDebug") 
-              << "PF " << iPF << " Accepted T. PF2"
-              << " time=" << pf.time() 
-              << " terr=" << pf.timeError() 
-              << " PV_time=" << pvs_t_ 
-              << " PV_timeErr=" << pvs_TimeErr_ 
-              << " dt(time-PV_time)=" <<dt
-              << " dtErr=" <<dtErr
-              << " dtSig=" <<dtSig;
-
-        //To verify the timed jet's PF
-//        pf_time.push_back(pf.time());
-//        pf_timeError.pupf_for_timesh_back(pf.timeError());
-//        pf_timeSig.push_back(tSig);
-//        pf_dt.push_back(dt);
-//        pf_dtErr.push_back(dtErr);
-//        pf_dtSig.push_back(dtSig);
-
-        // Save PF index (ONCE)
-//        pf_indices_withTime_.push_back(iPF);//global PF indices.
-      }//End of if (hasTimeCompatibleWithPV)
-
-      if (passes4D) { 
-        fastjet::PseudoJet pj_time4D = pj; // copy keeps iPF index
-        fjInputs_time4D.push_back(pj_time4D);
-        pf_for_time.push_back(&pf);
-      }//End of if (passes4D)
-     
+        }//end of if (hasValidTime&& pvHasValidTime) else {}     
+//      }//End of if (std::abs(dz) < 1) {}//When dZ+dt condition
     } else {
       // Fill with defaults to avoid division by zero, preserve structure
-      pf_dxy.push_back(99);
-      pf_dz.push_back(99);
-      pf_dzError.push_back(99);  // avoid division by zero
-      pf_dzSig.push_back(99);
+      pf_dxy.push_back(999);
+      pf_dz.push_back(999);
+      pf_dzError.push_back(999);  // avoid division by zero
+      pf_dzSig.push_back(999);
       pf_time.push_back(999);
       pf_timeError.push_back(999);
       pf_timeSig.push_back(999);
@@ -2511,11 +2514,11 @@ std::cout << "[DiagPF] Event " << iEvent.id().event()
       //CMSSW_15_1_0_pre4/Optionally:include all neutrals in tight/loose
       ++N_neutral;
         //!!!Place to investigate!!
-//      fjInputs_fromPV3.push_back(pj);
-//      fjInputs_tight.push_back(pj);
-//      fjInputs_loose.push_back(pj);
-//      fjInputs_time.push_back(pj);
-//      fjInputs_time4D.push_back(pj);
+      fjInputs_fromPV3.push_back(pj);
+      fjInputs_tight.push_back(pj);
+      fjInputs_loose.push_back(pj);
+      fjInputs_time.push_back(pj);
+      fjInputs_time4D.push_back(pj);
 //
     }//End of if (pf.hasTrackDetails() && isCharged) else{}
     //outside the MTD geometry &seem to have time info:Indicate a reconstruction or simulation artifact.
@@ -2612,7 +2615,7 @@ for (const auto& jet : timeJets4D) {
     float tErr_jet = -999.f;
     float tSig_jet = -999.f;
 
-    for (const auto& c : jet.constituents()) {
+    for (const auto& c : jet.constituents()) {//c is a copy of original PseudoJet, with its original user_index() preserved.
 
         int idx = c.user_index();
         if (idx < 0 || (size_t)idx >= pf_for_time.size()) continue;
@@ -2666,7 +2669,9 @@ std::cout << "[DiagPF] Event " << iEvent.id().event()
 //===== Generic std::vector<pat::Jet> Loop Template=====
 auto processJetCollection = [&](const std::vector<pat::Jet>& jetsIn,
                                 const std::vector<reco::GenJet>& genJets,
-
+                                std::vector<int>& jetMatched_all_,     // RECO → GEN match flag
+                                std::vector<int>& genJetMatched_all_,  // GEN → RECO match flag
+                                std::vector<int>& genMatchedDen_all_,  // GEN → RECO match flag
                                 std::vector<int>& jetIsHS_all_,
                                 std::vector<float>& jetPt_all_,
                                 std::vector<float>& jetAbsEta_all_,
@@ -2674,6 +2679,8 @@ auto processJetCollection = [&](const std::vector<pat::Jet>& jetsIn,
                                 std::vector<std::vector<unsigned int>>& jet_pfIndices_all_,
                                 std::vector<float>& jetResponse_all_,
                                 std::vector<float>& genPt_all_,
+                                std::vector<float>& genEta_all_,
+                                std::vector<float>& genEtaDen_all_,
                                 std::vector<float>& puFracPt_algo_all_,
                                 std::vector<float>& puFracCount_algo_all_,
                                 std::vector<float>& puFracPt_truth_all_,
@@ -2689,26 +2696,37 @@ auto processJetCollection = [&](const std::vector<pat::Jet>& jetsIn,
                                 std::vector<float>& puFracCount_5leading_,
 */
 				//per-collection summary variables
-                                int& totalRecoJets,
+                                int& totalRecoJetsClean,
                                 int& totalPUJets,
                                 float& puJetFraction_all_,
 				float& efficiency_out,
+				float& effLossAmbig,
+				float& effWithAmbig,
+				float& mistag,
 				float& purity_out) {
     int idx = 0;
-    totalRecoJets = 0;
+    totalRecoJetsClean = 0;
     totalPUJets   = 0;
     int nMatchedReco = 0;
-    int nMatchedR = 0;
+//    int nMatchedR = 0;
+   
+    std::vector<int> genJetAmbigMatched(genJets.size(), 0);
+   // Compute totalGenJets with the same minGenPt(pt > 20)
+    int totalGenJets = 0; // apply pt>10 cut here
+    for (size_t i=0; i<genJets.size(); ++i) {
+      const auto& g = genJets[i];
+      if (g.pt() <= 20.0) continue;
+      totalGenJets++;
 
-    // Compute nGenJetsHS with the same minGenPt useed above
-    int nGenJetsHS = 0; // apply pt>10 cut here
-    for (const auto& g : genJets) {
-      if (g.pt() > 10.0) nGenJetsHS++;
+    // denominator for efficiency profile
+    genEtaDen_all_.push_back(std::abs(g.eta()));
 
+    // placeholder, updated later after jet loop
+    genMatchedDen_all_.push_back(0);
     }
 
-    for (const auto& jet : jetsIn) {
-        totalRecoJets++;
+    std::vector<int> genJetMatched(genJets.size(), 0);
+    for (const auto& jet : jetsIn) {//jet = one RECO jet, jetsIn = all reconstructed jets in that collection
 
         // Get PF indices for this jet
         std::vector<unsigned int> pf_indices_this_jet =  getPFIndicesFromPatJet(jet);
@@ -2716,26 +2734,58 @@ auto processJetCollection = [&](const std::vector<pat::Jet>& jetsIn,
 
         // Jet ↔ GenJet matching/ classificaiton
         auto  truthMatch = classifyJetHS(jet, genJets,packedGenParticles,
-                                0.3,        // dRMax, 0.3
-                                10.0,       // minGenPt 10
+                                1.0,        // dRMax, 0.3
+                                20.0,       // minGenPt 10
                                 0.2,        // maxDz (loose PV cut)0.3
                                 genvertex_z_);  // generator PV
 
-         const reco::GenJet* matchedGenJet = truthMatch.matchedGen;          
-           
-           float minDR = truthMatch.dR; // example: distance saved in the struct
-           bool isHSjet = truthMatch.isHS;
-           bool isPUjet = !isHSjet;//jetIsHS_all_
-        if (matchedGenJet) nMatchedR++;
-     
         // --- NEW: store ΔR to matched gen jet
         jetDeltaR_all_.push_back(truthMatch.dR);  // use the correct vector per collection
+
+
+         const reco::GenJet* bestMatchedGenJet = truthMatch.matchedGen;//gen jet matched to current reco jet    
+        // ----------------------------
+        // GEN → RECO matching (efficiency)
+        // ----------------------------
+        if (bestMatchedGenJet != nullptr) {//genJets = vector of all GEN jets,genJets[i] = ith GEN jet
+            for (size_t i = 0; i < genJets.size(); ++i) {
+                if (&genJets[i] == bestMatchedGenJet) {
+                    if (!truthMatch.isAmbiguous)  // enforce your definition
+                        genJetMatched[i] = 1;//clean matched,whether gen jet i was matched by any reco jet
+                    else
+                        genJetAmbigMatched[i] = 1;//ambiguous matched 
+                    break;
+                }
+            }
+         }
+
+        // ----------------------------
+        // Skip ambiguous for RECO
+        // ----------------------------
+        if (truthMatch.isAmbiguous) continue;
+        totalRecoJetsClean++;
+
+        // ----------------------------
+        // RECO → GEN matching (mis-tag)
+        // ----------------------------
+        bool isMatched = false;
+        if (bestMatchedGenJet != nullptr) {
+          isMatched = true;
+            nMatchedReco++;
+        }
+        // Store RECO-side matching flag (needed for mis-tag)
+        jetMatched_all_.push_back(isMatched ? 1 : 0);     
+
+         float minDR = truthMatch.dR; // example: distance saved in the struct
+         bool isHSjet = truthMatch.isHS;
+         bool isPUjet = !isHSjet;//jetIsHS_all_
+     
         
         // HS/PU counting (strict)
         if (!truthMatch.isHS) totalPUJets++;
 
         // Response
-        float response = computeResponse(jet, matchedGenJet);
+        float response = computeResponse(jet, bestMatchedGenJet);
 
 	//=====================================================================
 	//  Compute per-jet PU fractions (algorithmic and truth-based)
@@ -2757,7 +2807,7 @@ auto processJetCollection = [&](const std::vector<pat::Jet>& jetsIn,
 
   	// truth classification (reuse cached pf_isPU_truth)
   	updatePFTruthContentReco(pf, truthAcc, idx, pf_isPU_truth);
-	}
+	}//End of for (unsigned int idx : pfIndices)
 
 	// Calculate fractions safely
 	float puFracCount_algo  = (algoAcc.nTot     > 0) ? float(algoAcc.nPU) / algoAcc.nTot     : -1.f;
@@ -2771,7 +2821,8 @@ auto processJetCollection = [&](const std::vector<pat::Jet>& jetsIn,
         jetAbsEta_all_.push_back(std::abs(jet.eta()));
         jetPhi_all_.push_back(jet.phi()); 
         jet_pfIndices_all_.push_back(pfIndices);//=pf_indices_general_all_.push_back(pf_indices_this_jet);
-        genPt_all_.push_back(matchedGenJet ? matchedGenJet->pt() : -1.0);
+        genPt_all_.push_back(bestMatchedGenJet ? bestMatchedGenJet->pt() : -1.0);
+        genEta_all_.push_back(bestMatchedGenJet ? std::abs(bestMatchedGenJet->eta()) : -1.0);
         jetResponse_all_.push_back(response);
         jetIsHS_all_.push_back(truthMatch.isHS ? 1 : 0);
         puFracCount_algo_all_.push_back(puFracCount_algo);//algorithm-based
@@ -2786,34 +2837,70 @@ auto processJetCollection = [&](const std::vector<pat::Jet>& jetsIn,
         if (idx < 5) {
             jetPt_5leading_.push_back(jet.pt());
             jetAbsEta_5leading_.push_back(std::abs(jet.eta()));
-            genPt_5leading_.push_back(matchedGenJet ? matchedGenJet->pt() : -1.0);
+            genPt_5leading_.push_back(bestMatchedGenJet ? bestMatchedGenJet->pt() : -1.0);
             jetResponse_5leading_.push_back(response);
             puFracCount_5leading_.push_back(pu.fracCount);
             puFracPt_5leading_.push_back(pu.fracPt);
         }//if (idx < 5)
 */
         idx++;
-    }
+    }//End of for (const auto& jet : jetsIn)
+
+    //=====Theo's method:This is GEN → RECO matching, required for efficiency=====
+    int nGenMatched = 0;
+    int nGenMatchedAmbig = 0;
+    int igen_pass = 0;
+
+    for (size_t i = 0; i < genJets.size(); ++i) {
+        if (genJets[i].pt() <= 20.0) continue;
+        // profile numerator partner
+        genMatchedDen_all_[igen_pass] = genJetMatched[i];
+        genJetMatched_all_.push_back(genJetMatched[i]);
+        if (genJetMatched[i] == 1)
+            nGenMatched++;
+        else if (genJetAmbigMatched[i] == 1)
+            nGenMatchedAmbig++;
+        igen_pass++;
+    }//End of for (size_t i = 0; i < genJets.size(); ++i)
 
     //PU jet fraction
-    puJetFraction_all_ = (totalRecoJets > 0)
-        ? static_cast<float>(totalPUJets) / totalRecoJets
+    puJetFraction_all_ = (totalRecoJetsClean > 0)
+        ? static_cast<float>(totalPUJets) / totalRecoJetsClean
         : -1.0f;
    
     //Jet efficiency/purity: Count HS vs PU jets explicitly 
     //efficiency = fraction of gen jets reconstructed.
     //purity = fraction of  jetIsHS_all_.push_back(truthMatch.isHS ? 1 : 0);reco jets that are HS.    
-    const int nRecoJetsHS = totalRecoJets - totalPUJets;
-    efficiency_out = (nGenJetsHS > 0)     ? float(nRecoJetsHS)/nGenJetsHS : -1.0f;
-    purity_out     = (totalRecoJets > 0)   ? float(nRecoJetsHS)/totalRecoJets : -1.0f;
 
-};
+//    int nGenMatched = std::count(genJetMatched.begin(), genJetMatched.end(), 1);
+    const int nRecoJetsHS = totalRecoJetsClean - totalPUJets;
+    efficiency_out = (totalGenJets > 0) ? float(nGenMatched) / totalGenJets : -1.0f;
+    effLossAmbig =(totalGenJets > 0) ? float(nGenMatchedAmbig)/totalGenJets : -1.0f;
+    effWithAmbig = (totalGenJets > 0) ? float(nGenMatched + nGenMatchedAmbig)/totalGenJets : -1.0f;
+    mistag = (totalRecoJetsClean > 0) ? float(totalRecoJetsClean - nMatchedReco)/totalRecoJetsClean : -1.0f;    
+    purity_out =(totalRecoJetsClean > 0) ? float(nMatchedReco)/totalRecoJetsClean : -1.0f;    
+
+//    efficiency_out = (totalGenJets > 0)     ? float(nRecoJetsHS)/totalGenJets : -1.0f;
+//    purity_out     = (totalRecoJetsClean > 0)   ? float(nRecoJetsHS)/totalRecoJetsClean : -1.0f;
+
+std::cout
+<< "totalGenJets      = " << totalGenJets << "\n"
+<< "clean matched     = " << nGenMatched << "\n"
+<< "ambiguous matched = " << nGenMatchedAmbig << "\n"
+<< "strict eff        = " << efficiency_out << "\n"
+<< "ambig loss        = " << effLossAmbig << "\n"
+<< "eff incl ambig    = " << effWithAmbig << "\n";
+
+};//end of auto processJetCollection = [&](){
 
 
 
 //===== Generic std::vector<fastjet::PseudoJet> Loop Template=====
 auto processFastJetCollection = [&](const std::vector<fastjet::PseudoJet>& jetsIn,
                                 const std::vector<reco::GenJet>& genJets,
+                                std::vector<int>& jetMatched_all_,     // RECO → GEN match flag
+                                std::vector<int>& genJetMatched_all_,  // GEN → RECO match flag
+                                std::vector<int>& genMatchedDen_all_,  // GEN → RECO match flag
 
                                 std::vector<int>& jetIsHS_all_,
                                 std::vector<float>& jetPt_all_,
@@ -2822,6 +2909,8 @@ auto processFastJetCollection = [&](const std::vector<fastjet::PseudoJet>& jetsI
                                 std::vector<std::vector<unsigned int>>& jet_pfIndices_all_,
                                 std::vector<float>& jetResponse_all_,
                                 std::vector<float>& genPt_all_,
+                                std::vector<float>& genEta_all_,
+                                std::vector<float>& genEtaDen_all_,
                                 std::vector<float>& puFracPt_algo_all_,
                                 std::vector<float>& puFracCount_algo_all_,
                                 std::vector<float>& puFracPt_truth_all_,
@@ -2837,50 +2926,132 @@ auto processFastJetCollection = [&](const std::vector<fastjet::PseudoJet>& jetsI
                                 std::vector<float>& puFracCount_5leading_,
 */
 
-                                int& totalRecoJets,
+                                int& totalRecoJetsClean,
                                 int& totalPUJets,
                                 float& puJetFraction_all_,
 				float& efficiency_out,
+				float& effLossAmbig,
+				float& effWithAmbig,
+				float& mistag,
 				float& purity_out) {
     int idx = 0;
-    totalRecoJets = 0;
+    totalRecoJetsClean = 0;
     totalPUJets   = 0;
     int nMatchedReco = 0;
+    std::vector<int> genJetAmbigMatched(genJets.size(), 0); 
 
-    // Compute nGenJetsHS with the same minGenPt(pt > 10)
-    int nGenJetsHS = 0; // apply pt>10 cut here
-    for (const auto& g : genJets) {
-      if (g.pt() > 10.0) nGenJetsHS++;
+   // Compute totalGenJets with the same minGenPt(pt > 20)
+    int totalGenJets = 0; // apply pt>10 cut here
+    for (size_t i=0; i<genJets.size(); ++i) {
+      const auto& g = genJets[i];
+      if (g.pt() <= 20.0) continue;
+      totalGenJets++;
+
+    // denominator for efficiency profile
+    genEtaDen_all_.push_back(std::abs(g.eta()));
+
+    // placeholder, updated later after jet loop
+    genMatchedDen_all_.push_back(0);
     }
-
+//    int jetCounter = 0;
+    std::vector<int> genJetMatched(genJets.size(), 0);
     for (const auto& jet : jetsIn) {
-        totalRecoJets++;
+/*  
+      //----------DEBUGGING------------
+        std::cout << "\n[JET] #" << jetCounter
+                  << " pt=" << jet.pt()
+                  << " eta=" << jet.eta()
+                  << std::endl;
+
+        auto consts = jet.constituents();//c is a copy of original PseudoJet, with its original user_index() preserved.
+
+        int nPrint = 0;
+
+        for (const auto& c : consts) {
+
+        int idx = c.user_index();
+
+        std::cout << "  constituent user_index=" << idx;
+
+        // Safety check
+        if (idx < 0 || idx >= (int)pf_for_allCollections.size()) {
+            std::cout << "  [INVALID INDEX!]" << std::endl;
+            continue;
+        }
+
+        const auto& pf = pf_for_allCollections[idx];
+
+        std::cout << " -> PF(pt=" << pf->pt()
+                  << ", eta=" << pf->eta()
+                  << ", phi=" << pf->phi()
+                  << ", time=" << pf->time()
+                  << ")"
+                  << std::endl;
+
+        if (++nPrint > 5) break; // limit per jet
+    }//end of for (const auto& c : consts)
+    jetCounter++;
+    if (jetCounter > 3) break; // limit jets
+//--------------EDN of DEBUGGING-------------
+*/
 
         // Get PF indices for this jet
         auto pf_indices_this_jet = getPFIndicesFromPseudoJet(jet, pf_for_allCollections);
         pf_indices_general_all_.push_back(pf_indices_this_jet);//global PF indices.
 
         auto truthMatch = classifyJetHS(jet, genJets,packedGenParticles,
-                                0.3,        // dRMax
-                                10.0,       // minGenPt
+                                1.0,        // dRMax
+                                20.0,       // minGenPt
                                 0.2,        // maxDz (loose PV cut)
                                 genvertex_z_);  // generator PV
-         const reco::GenJet* matchedGenJet = truthMatch.matchedGen;      
-     
-           float minDR = truthMatch.dR; // example: distance saved in the struct
-           bool isHSjet = truthMatch.isHS;
-           bool isPUjet = !isHSjet;
-
-        if (matchedGenJet) nMatchedReco++;
-     
+    
         // --- NEW: store ΔR to matched gen jet
         jetDeltaR_all_.push_back(truthMatch.dR);  // use the correct vector per collection
 
+         const reco::GenJet* bestMatchedGenJet = truthMatch.matchedGen;      
+        // ----------------------------
+        // GEN → RECO matching (efficiency)
+        // ----------------------------
+        if (bestMatchedGenJet != nullptr) {
+            for (size_t i = 0; i < genJets.size(); ++i) {
+                if (&genJets[i] == bestMatchedGenJet) {
+                    if (!truthMatch.isAmbiguous)  // enforce your definition
+                        genJetMatched[i] = 1;
+                    else
+                        genJetAmbigMatched[i] = 1;
+                    break;
+                }
+            }
+         }
+
+        // ----------------------------
+        // Skip ambiguous for RECO
+        // ----------------------------
+        if (truthMatch.isAmbiguous) continue;
+        totalRecoJetsClean++;
+
+        // ----------------------------
+        // RECO → GEN matching (mis-tag)
+        // ----------------------------
+        bool isMatched = false;
+        if (bestMatchedGenJet != nullptr) {
+          isMatched = true;
+            nMatchedReco++;
+        }
+
+        // Store RECO-side matching flag (needed for mis-tag)
+        jetMatched_all_.push_back(isMatched ? 1 : 0);
+     
+         float minDR = truthMatch.dR; // example: distance saved in the struct
+         bool isHSjet = truthMatch.isHS;
+         bool isPUjet = !isHSjet;
+
+     
         // HS/PU counting (strict)
         if (!truthMatch.isHS) totalPUJets++;
 
         // Response
-        float response = computeResponse(jet, matchedGenJet);
+        float response = computeResponse(jet, bestMatchedGenJet);
 
 	//=====================================================================
 	//  Compute per-fastjet PU fractions (algorithmic and truth-based)
@@ -2889,10 +3060,22 @@ auto processFastJetCollection = [&](const std::vector<fastjet::PseudoJet>& jetsI
 	PFTruthContentReco truthAcc;
 
 //	auto pfIndices = getPFIndicesFromPseudoJet(jet, pf_for_allCollections);//Redundent
+
+        //----- loop only for computing jet-level quantities---
 	const auto& pfIndices = pf_indices_this_jet;
         for (unsigned int idx : pfIndices) {//loop over PFs to compute jet-level quantities
   	if (idx >= pf_for_allCollections.size()) continue;
  	 const pat::PackedCandidate* pf = pf_for_allCollections[idx];
+  
+/*
+      // -------- DEBUG (exactly where mapping happens) --------
+      if (idx >= pf_for_allCollections.size()) {
+       edm::LogWarning("PFIndexDebug")
+            << "[BAD INDEX] idx=" << idx
+            << " pf_for_allCollections.size()=" << pf_for_allCollections.size();
+      }//
+      // --------END: DEBUG (exactly where mapping happens) --------
+*/
 
          // algorithmic classification
 //        float pvTime = pvs_t_.empty() ? 0.f : pvs_t_[0];
@@ -2901,7 +3084,7 @@ auto processFastJetCollection = [&](const std::vector<fastjet::PseudoJet>& jetsI
         
         // truth update using cached per-PF truth flags
   	updatePFTruthContentReco(pf, truthAcc, idx, pf_isPU_truth);
-	}
+	}//End of for (unsigned int idx : pfIndices)
 
 	float puFracCount_algo  = (algoAcc.nTot     > 0) ? float(algoAcc.nPU) / algoAcc.nTot     : -1.f;
 	float puFracPt_algo     = (algoAcc.sumPtTot > 0) ? algoAcc.sumPtPU   / algoAcc.sumPtTot  : -1.f;
@@ -2913,7 +3096,20 @@ auto processFastJetCollection = [&](const std::vector<fastjet::PseudoJet>& jetsI
         jetAbsEta_all_.push_back(std::abs(jet.eta()));
         jetPhi_all_.push_back(jet.phi()); 
         jet_pfIndices_all_.push_back(pfIndices);//=pf_indices_general_all_.push_back(pf_indices_this_jet);//global PF indices.
-        genPt_all_.push_back(matchedGenJet ? matchedGenJet->pt() : -1.0);
+
+/*
+        //-----DEBUGGING-------------
+        std::cout << "[STORE] jet has " << pfIndices.size()
+                  << " PF indices: ";
+
+        for (size_t i = 0; i < std::min<size_t>(pfIndices.size(), 6); ++i) {
+             std::cout << pfIndices[i] << " ";
+        }
+        std::cout << std::endl;
+        //-----------------------------
+*/
+        genPt_all_.push_back(bestMatchedGenJet ? bestMatchedGenJet->pt() : -1.0);
+        genEta_all_.push_back(bestMatchedGenJet ? std::abs(bestMatchedGenJet->eta()) : -1.0);
         jetResponse_all_.push_back(response);
         jetIsHS_all_.push_back(truthMatch.isHS ? 1 : 0);
 	puFracCount_algo_all_.push_back(puFracCount_algo);
@@ -2926,7 +3122,7 @@ auto processFastJetCollection = [&](const std::vector<fastjet::PseudoJet>& jetsI
         if (idx < 5) {
             jetPt_5leading_.push_back(jet.pt());
             jetAbsEta_5leading_.push_back(std::abs(jet.eta()));
-            genPt_5leading_.push_back(matchedGenJet ? matchedGenJet->pt() : -1.0);
+            genPt_5leading_.push_back(bestMatchedGenJet ? bestMatchedGenJet->pt() : -1.0);
             jetResponse_5leading_.push_back(response);
             puFracCount_5leading_.push_back(pu.fracCount);
             puFracPt_5leading_.push_back(pu.fracPt);
@@ -2934,56 +3130,81 @@ auto processFastJetCollection = [&](const std::vector<fastjet::PseudoJet>& jetsI
 */
         idx++;
     }
-    // PU jet fraction
-    puJetFraction_all_ = (totalRecoJets > 0)
-        ? static_cast<float>(totalPUJets) / totalRecoJets
-        : -1.0f;
-   
-//    Jet efficiency/purity: Count HS vs PU jets explicitly 
-    const int nRecoJetsHS = totalRecoJets - totalPUJets;
-    efficiency_out = (nGenJetsHS > 0)     ? float(nRecoJetsHS)/nGenJetsHS : -1.0f;
-    purity_out     = (totalRecoJets > 0)   ? float(nRecoJetsHS)/totalRecoJets : -1.0f;
-};
 
-processJetCollection(*jets,  genJets, 
-	jetIsHS_puppi_all_, jetPt_puppi_all_, jetAbsEta_puppi_all_, jetPhi_puppi_all_, jet_pfIndices_puppi_all_, jetResponse_PR_puppi_all_,genPt_puppi_all_, puFracPt_algo_puppi_all_, puFracCount_algo_puppi_all_, puFracPt_truth_puppi_all_, puFracCount_truth_puppi_all_,jetDeltaR_puppi_all_,pf_indices_puppi_all_,
+    //=====Theo's method:This is GEN → RECO matching, required for efficiency=====
+    int nGenMatched = 0;
+    int nGenMatchedAmbig = 0;
+    int igen_pass = 0;
+
+    for (size_t i = 0; i < genJets.size(); ++i) {
+        if (genJets[i].pt() <= 20.0) continue;
+        // profile numerator partner
+        genMatchedDen_all_[igen_pass] = genJetMatched[i];
+        genJetMatched_all_.push_back(genJetMatched[i]);
+        if (genJetMatched[i] == 1)
+            nGenMatched++;
+        else if (genJetAmbigMatched[i] == 1)
+            nGenMatchedAmbig++;
+        igen_pass++;
+    }//End of for (size_t i = 0; i < genJets.size(); ++i)
+
+    // PU jet fraction
+    puJetFraction_all_ = (totalRecoJetsClean > 0)
+        ? static_cast<float>(totalPUJets) / totalRecoJetsClean
+        : -1.0f;
+//    Jet efficiency/purity: Count HS vs PU jets explicitly 
+//    int nGenMatched = std::count(genJetMatched.begin(), genJetMatched.end(), 1);
+    const int nRecoJetsHS = totalRecoJetsClean - totalPUJets;
+
+    efficiency_out = (totalGenJets > 0)     ? float(nGenMatched) / totalGenJets : -1.0f;
+    effLossAmbig =(totalGenJets > 0) ? float(nGenMatchedAmbig)/totalGenJets : -1.0f;
+    effWithAmbig = (totalGenJets > 0) ? float(nGenMatched + nGenMatchedAmbig)/totalGenJets : -1.0f;
+    mistag = (totalRecoJetsClean > 0) ? float(totalRecoJetsClean - nMatchedReco)/totalRecoJetsClean : -1.0f;    
+    purity_out =(totalRecoJetsClean > 0) ? float(nMatchedReco)/totalRecoJetsClean : -1.0f;    
+//    efficiency_out = (totalGenJets > 0)     ? float(nRecoJetsHS)/totalGenJets : -1.0f;
+//    purity_out     = (totalRecoJetsClean > 0)   ? float(nRecoJetsHS)/totalRecoJetsClean : -1.0f;
+
+};//End of auto processFastJetCollection = [&]()
+
+processJetCollection(*jets,  genJets, jetMatched_puppi_all_, genJetMatched_puppi_all_, genMatchedDen_puppi_all_, 
+	jetIsHS_puppi_all_, jetPt_puppi_all_, jetAbsEta_puppi_all_, jetPhi_puppi_all_, jet_pfIndices_puppi_all_, jetResponse_PR_puppi_all_,genPt_puppi_all_, genEta_puppi_all_, genEtaDen_puppi_all_,puFracPt_algo_puppi_all_, puFracCount_algo_puppi_all_, puFracPt_truth_puppi_all_, puFracCount_truth_puppi_all_,jetDeltaR_puppi_all_,pf_indices_puppi_all_,
 //	jetPt_puppi_5leading_, jetAbsEta_puppi_5leading_, jetResponse_PR_puppi_5leading_, genPt_puppi_5leading_, puFracPt_puppi_5leading_, puFracCount_puppi_5leading_,
-	totalRecoJets_puppi, totalPUJets_puppi, puJetFraction_puppi_all_,efficiency_puppi_, purity_puppi_);
+	totalRecoJetsClean_puppi, totalPUJets_puppi, puJetFraction_puppi_all_,efficiency_puppi_, effLossAmbig_puppi_,effWithAmbig_puppi_,mistag_puppi_, purity_puppi_);
 
 
 //const auto& pfrawJetsConst = pfrawJets;
-processFastJetCollection(pfrawJets,  genJets, 
-	jetIsHS_pfraw_all_, jetPt_pfraw_all_, jetAbsEta_pfraw_all_, jetPhi_pfraw_all_, jet_pfIndices_pfraw_all_, jetResponse_PR_pfraw_all_,genPt_pfraw_all_, puFracPt_algo_pfraw_all_, puFracCount_algo_pfraw_all_,puFracPt_truth_pfraw_all_, puFracCount_truth_pfraw_all_,jetDeltaR_pfraw_all_,pf_indices_pfraw_all_,
+processFastJetCollection(pfrawJets,  genJets, jetMatched_pfraw_all_, genJetMatched_pfraw_all_, genMatchedDen_pfraw_all_,
+	jetIsHS_pfraw_all_, jetPt_pfraw_all_, jetAbsEta_pfraw_all_, jetPhi_pfraw_all_, jet_pfIndices_pfraw_all_, jetResponse_PR_pfraw_all_,genPt_pfraw_all_, genEta_pfraw_all_, genEtaDen_pfraw_all_, puFracPt_algo_pfraw_all_, puFracCount_algo_pfraw_all_,puFracPt_truth_pfraw_all_, puFracCount_truth_pfraw_all_,jetDeltaR_pfraw_all_,pf_indices_pfraw_all_,
 //	jetPt_pfraw_5leading_, jetAbsEta_pfraw_5leading_, jetResponse_PR_pfraw_5leading_, genPt_pfraw_5leading_, puFracPt_pfraw_5leading_, puFracCount_pfraw_5leading_,
-	totalRecoJets_pfraw, totalPUJets_pfraw, puJetFraction_pfraw_all_,efficiency_pfraw_, purity_pfraw_);
+	totalRecoJetsClean_pfraw, totalPUJets_pfraw, puJetFraction_pfraw_all_, efficiency_pfraw_, effLossAmbig_pfraw_, effWithAmbig_pfraw_, mistag_pfraw_, purity_pfraw_);
 
-processFastJetCollection(fromPV3Jets,  genJets, 
-	jetIsHS_fromPV3_all_, jetPt_fromPV3_all_, jetAbsEta_fromPV3_all_,jetPhi_fromPV3_all_, jet_pfIndices_fromPV3_all_, jetResponse_PR_fromPV3_all_,genPt_fromPV3_all_, puFracPt_algo_fromPV3_all_, puFracCount_algo_fromPV3_all_,puFracPt_truth_fromPV3_all_, puFracCount_truth_fromPV3_all_,jetDeltaR_fromPV3_all_,pf_indices_fromPV3_all_,
+processFastJetCollection(fromPV3Jets,  genJets, jetMatched_fromPV3_all_, genJetMatched_fromPV3_all_, genMatchedDen_fromPV3_all_,
+	jetIsHS_fromPV3_all_, jetPt_fromPV3_all_, jetAbsEta_fromPV3_all_,jetPhi_fromPV3_all_, jet_pfIndices_fromPV3_all_, jetResponse_PR_fromPV3_all_,genPt_fromPV3_all_, genEta_fromPV3_all_, genEtaDen_fromPV3_all_, puFracPt_algo_fromPV3_all_, puFracCount_algo_fromPV3_all_,puFracPt_truth_fromPV3_all_, puFracCount_truth_fromPV3_all_,jetDeltaR_fromPV3_all_,pf_indices_fromPV3_all_,
 //	jetPt_fromPV3_5leading_, jetAbsEta_fromPV3_5leading_, jetResponse_PR_fromPV3_5leading_, genPt_fromPV3_5leading_, puFracPt_fromPV3_5leading_, puFracCount_fromPV3_5leading_,
-	totalRecoJets_fromPV3, totalPUJets_fromPV3, puJetFraction_fromPV3_all_,efficiency_fromPV3_, purity_fromPV3_);
+	totalRecoJetsClean_fromPV3, totalPUJets_fromPV3, puJetFraction_fromPV3_all_, efficiency_fromPV3_, effLossAmbig_fromPV3_, effWithAmbig_fromPV3_, mistag_fromPV3_, purity_fromPV3_);
 
-processFastJetCollection(tightJets,  genJets, 
-	jetIsHS_tight_all_,jetPt_tight_all_, jetAbsEta_tight_all_, jetPhi_tight_all_, jet_pfIndices_tight_all_, jetResponse_PR_tight_all_,genPt_tight_all_, puFracPt_algo_tight_all_, puFracCount_algo_tight_all_,puFracPt_truth_tight_all_, puFracCount_truth_tight_all_,jetDeltaR_tight_all_,pf_indices_tight_all_,
+processFastJetCollection(tightJets,  genJets, jetMatched_tight_all_, genJetMatched_tight_all_, genMatchedDen_tight_all_,
+	jetIsHS_tight_all_,jetPt_tight_all_, jetAbsEta_tight_all_, jetPhi_tight_all_, jet_pfIndices_tight_all_, jetResponse_PR_tight_all_,genPt_tight_all_, genEta_tight_all_, genEtaDen_tight_all_, puFracPt_algo_tight_all_, puFracCount_algo_tight_all_,puFracPt_truth_tight_all_, puFracCount_truth_tight_all_,jetDeltaR_tight_all_,pf_indices_tight_all_,
 //	jetPt_tight_5leading_, jetAbsEta_tight_5leading_, jetResponse_PR_tight_5leading_, genPt_tight_5leading_, puFracPt_tight_5leading_, puFracCount_tight_5leading_,
-	totalRecoJets_tight, totalPUJets_tight, puJetFraction_tight_all_,efficiency_tight_, purity_tight_);
+	totalRecoJetsClean_tight, totalPUJets_tight, puJetFraction_tight_all_, efficiency_tight_, effLossAmbig_tight_, effWithAmbig_tight_, mistag_tight_, purity_tight_);
 
 
-processFastJetCollection(looseJets,  genJets,
-	jetIsHS_loose_all_, jetPt_loose_all_, jetAbsEta_loose_all_,jetPhi_loose_all_, jet_pfIndices_loose_all_, jetResponse_PR_loose_all_,genPt_loose_all_, puFracPt_algo_loose_all_, puFracCount_algo_loose_all_,puFracPt_truth_loose_all_, puFracCount_truth_loose_all_,jetDeltaR_loose_all_,pf_indices_loose_all_,
+processFastJetCollection(looseJets,  genJets, jetMatched_loose_all_, genJetMatched_loose_all_, genMatchedDen_loose_all_,
+	jetIsHS_loose_all_, jetPt_loose_all_, jetAbsEta_loose_all_,jetPhi_loose_all_, jet_pfIndices_loose_all_, jetResponse_PR_loose_all_,genPt_loose_all_,genEta_loose_all_, genEtaDen_loose_all_, puFracPt_algo_loose_all_, puFracCount_algo_loose_all_,puFracPt_truth_loose_all_, puFracCount_truth_loose_all_,jetDeltaR_loose_all_,pf_indices_loose_all_,
 //	jetPt_loose_5leading_, jetAbsEta_loose_5leading_, jetResponse_PR_loose_5leading_, genPt_loose_5leading_, puFracPt_loose_5leading_, puFracCount_loose_5leading_,
-	totalRecoJets_loose, totalPUJets_loose, puJetFraction_loose_all_,efficiency_loose_, purity_loose_);
+	totalRecoJetsClean_loose, totalPUJets_loose, puJetFraction_loose_all_, efficiency_loose_, effLossAmbig_loose_, effWithAmbig_loose_, mistag_loose_,purity_loose_);
 
 
-processFastJetCollection(timeJets,  genJets, 
-	jetIsHS_time_all_, jetPt_time_all_, jetAbsEta_time_all_, jetPhi_time_all_, jet_pfIndices_time_all_, jetResponse_PR_time_all_,genPt_time_all_, puFracPt_algo_time_all_, puFracCount_algo_time_all_,puFracPt_truth_time_all_, puFracCount_truth_time_all_, jetDeltaR_time_all_,pf_indices_time_all_,
+processFastJetCollection(timeJets,  genJets, jetMatched_time_all_, genJetMatched_time_all_, genMatchedDen_time_all_,
+	jetIsHS_time_all_, jetPt_time_all_, jetAbsEta_time_all_, jetPhi_time_all_, jet_pfIndices_time_all_, jetResponse_PR_time_all_,genPt_time_all_,genEta_time_all_, genEtaDen_time_all_, puFracPt_algo_time_all_, puFracCount_algo_time_all_,puFracPt_truth_time_all_, puFracCount_truth_time_all_, jetDeltaR_time_all_,pf_indices_time_all_,
 //	jetPt_time_5leading_, jetAbsEta_time_5leading_, jetResponse_PR_time_5leading_, genPt_time_5leading_, puFracPt_time_5leading_, puFracCount_time_5leading_,
-	totalRecoJets_time, totalPUJets_time, puJetFraction_time_all_,efficiency_time_, purity_time_);
+	totalRecoJetsClean_time, totalPUJets_time, puJetFraction_time_all_, efficiency_time_, effLossAmbig_time_, effWithAmbig_time_, mistag_time_, purity_time_);
 
 
-processFastJetCollection(timeJets4D,  genJets, 
-	jetIsHS_time4D_all_, jetPt_time4D_all_, jetAbsEta_time4D_all_, jetPhi_time4D_all_, jet_pfIndices_time4D_all_, jetResponse_PR_time4D_all_,genPt_time4D_all_, puFracPt_algo_time4D_all_, puFracCount_algo_time4D_all_,puFracPt_truth_time4D_all_, puFracCount_truth_time4D_all_, jetDeltaR_time4D_all_,pf_indices_time4D_all_,
+processFastJetCollection(timeJets4D,  genJets, jetMatched_time4D_all_, genJetMatched_time4D_all_, genMatchedDen_time4D_all_,
+	jetIsHS_time4D_all_, jetPt_time4D_all_, jetAbsEta_time4D_all_, jetPhi_time4D_all_, jet_pfIndices_time4D_all_, jetResponse_PR_time4D_all_,genPt_time4D_all_, genEta_time4D_all_, genEtaDen_time4D_all_, puFracPt_algo_time4D_all_, puFracCount_algo_time4D_all_,puFracPt_truth_time4D_all_, puFracCount_truth_time4D_all_, jetDeltaR_time4D_all_,pf_indices_time4D_all_,
 //	jetPt_time4D_5leading_, jetAbsEta_time4D_5leading_, jetResponse_PR_time4D_5leading_, genPt_time4D_5leading_, puFracPt_time4D_5leading_, puFracCount_time4D_5leading_,
-	totalRecoJets_time4D, totalPUJets_time4D, puJetFraction_time4D_all_,efficiency_time4D_, purity_time4D_);
+	totalRecoJetsClean_time4D, totalPUJets_time4D, puJetFraction_time4D_all_, efficiency_time4D_, effLossAmbig_time4D_, effWithAmbig_time4D_, mistag_time4D_,purity_time4D_);
 
 
 
@@ -3036,39 +3257,55 @@ tree_->Fill();
     }
   }//End of for (size_t i = 0; i < pf_for_allCollections.size()
 
-  std::vector<int> jetIsHS_puppi_all_;
-  std::vector<float> jetPt_puppi_all_;
-  std::vector<float> jetAbsEta_puppi_all_;
-  std::vector<float> jetResponse_PR_puppi_all_;
-  std::vector<float> genPt_puppi_all_;
-  std::vector<float> puFracPt_algo_puppi_all_;
-  std::vector<float> puFracCount_algo_puppi_all_;
-  std::vector<float> puFracPt_truth_puppi_all_;
-  std::vector<float> puFracCount_truth_puppi_all_;
-
-
-  if (!jetPt_puppi_all_.empty()) {
-      double sumHS = 0, sumPU = 0;
-      int nHS = 0, nPU = 0;
-      for (size_t i = 0; i < jetIsHS_puppi_all_.size(); ++i) {
-          if (jetIsHS_puppi_all_[i]) {
-              sumHS += puFracPt_truth_puppi_all_[i];
-              ++nHS;
-          } else {
-              sumPU += puFracPt_truth_puppi_all_[i];
-              ++nPU;
-          }
-      }
-      edm::LogVerbatim("JetTreeProducer")
-          << "[Diag] Average PU fraction (truth): HS jets = "
-          << (nHS > 0 ? sumHS/nHS : -1)
-          << ", PU jets = "
-          << (nPU > 0 ? sumPU/nPU : -1);
-  }//if (!jetPt_.empty())
-
- std::cout << "Number of PVs: " << pv_handle->size() << std::endl;
 
 }//End of void JetTreeProducer::analyze(const edm::Event& iEvent, const edm::EventSetup&) {
+
+
+//-------------------Same PFset Test: sJet=fast jet constituents test 
+void comparePFConstituents(const pat::Jet& patJet,
+                          const fastjet::PseudoJet& fjJet,
+                          const std::vector<const pat::PackedCandidate*>& pf)
+{
+    auto patIdx = getPFIndicesFromPatJet(patJet);
+    auto fjIdx  = getPFIndicesFromPseudoJet(fjJet, pf);
+
+    std::set<unsigned int> patSet(patIdx.begin(), patIdx.end());
+    std::set<unsigned int> fjSet(fjIdx.begin(), fjIdx.end());
+
+    size_t nCommon = 0;
+    for (auto idx : patSet) {
+        if (fjSet.count(idx)) nCommon++;
+    }
+
+    std::cout << "PAT size=" << patSet.size()
+              << " FJ size=" << fjSet.size()
+              << " common=" << nCommon
+              << " purity(PAT)=" << float(nCommon)/patSet.size()
+              << " purity(FJ)="  << float(nCommon)/fjSet.size()
+              << std::endl;
+}//End of void comparePFConstituents()
+//-------------------End of Same PFset Test: sJet=fast jet constituents test 
+
+
+// void JetTreeProducer::fillHSGenJets() 정의
+void JetTreeProducer::fillHSGenJets(
+    const reco::GenJetCollection& genJets
+) {
+    nHSGenJets_ = 0;
+    hsGenJet_pt_.clear();
+    hsGenJet_eta_.clear();
+
+    for (const auto& jet : genJets) {
+        if (jet.pt() < 10.0) continue;
+        if (std::abs(jet.eta()) > 3) continue;
+
+        nHSGenJets_++;
+        hsGenJet_pt_.push_back(jet.pt());
+        hsGenJet_eta_.push_back(jet.eta());
+    }
+}//End of void JetTreeProducer::fillHSGenJets()
+
+
 
 void JetTreeProducer::endJob() {
   //file_->cd();

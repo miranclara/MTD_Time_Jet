@@ -1075,97 +1075,6 @@ else
 
     genEta_all_.push_back(bestGenJet ? std::abs(bestGenJet->eta()) : -1.f);
 
-    //------Debugging print ------------//
-
- static int debugEvent = 0;
-
-    if (debugEvent < 5)
-    {
-        std::cout
-            << "Jet " << jetMatched_all_.size()-1
-            << "  isHS=" << constituentHSJet
-            << "  matched=" << (bestGenJet ? 1 : 0)
-            << "  bestDR=" << bestDR
-            << "  bestGenIndex=" << bestGenIndex
-            << std::endl;
-    }//
-
-    if (constituentHSJet && bestGenJet == nullptr)
-    {
-        std::cout
-            << "\n=====DEBUGGING======\n"
-            << "Unmatched HS jet\n"
-            << " jetPt=" << jet.pt()
-            << " eta=" << jet.eta()
-            << " sumPtHS=" << sumPtHS
-            << " sumPtPU=" << sumPtPU
-            << " nHS=" << nHS
-            << " nPU=" << nPU
-            << " nGenJets=" << genJets.size()
-            << std::endl;
-    }//Endof if (constituentHSJet && bestGenJet == nullptr)
-
-
-    if (constituentHSJet && !jetMatched_all_.back())
-    {
-        std::cout
-            << "\n===== HS unmatched =====\n"
-            << "jetPt = " << jet.pt()
-            << " eta = " << jet.eta()
-            << "\nHS pt = " << sumPtHS
-            << " PU pt = " << sumPtPU
-            << " Unknown pt = " << sumPtUnknown
-            << std::endl;
-    }
-
-    if (sumPtHS == 0 && sumPtPU == 0 && sumPtUnknown > 0)
-    {
-        std::cout
-            << "UnknownJet |eta| = " << std::abs(jet.eta())
-            << std::endl;
-          
-    }
-    //-------Debugging print end---------//
-
-    int nGenAbove20 = 0;
-
-    for (const auto& gj : genJets)
-    {
-    if (gj.pt() > 20)
-        ++nGenAbove20;
-    }
-    std::cout
-        << "nGenJetsAbove20 = "
-        << nGenAbove20
-        << "\n=====DEBUGGING======\n"
-        << std::endl;
-
-static bool printedGenJets = false;
-
-if (!printedGenJets)
-{
-    std::cout << "\nGenJets (pt > 20)\n";
-
-    for (size_t i = 0; i < genJets.size(); ++i)
-    {
-        if (genJets[i].pt() < 20.) continue;
-
-//        std::cout
-//            << "Gen " << i
-//            << " pt=" << genJets[i].pt()
-//            << " eta=" << genJets[i].eta()
-//            << std::endl;
-    }
-
-    printedGenJets = true;
-}
-
-//std::cout << "Before GenJet loop, genJets.size() = "
-//          << genJets.size()
-//          << std::endl;
-//------End of Debuggin print----------//
-
- 
     float response = -1.f;
 
     if (bestGenJet && bestGenJet->pt() > 0.f)
@@ -1175,18 +1084,10 @@ if (!printedGenJets)
     //----------------------------
     // RECO -> GEN:old one-to-many jet matching
     //----------------------------
-/*    if (!matchedAmbiguousJet)
-        jetMatched_all_.back() = matchedHSJet ? 1 : 0;
-    else
-        jetMatched_all_.back() = 0; */
      jetMatched_all_.back() = 0;
     //----------------------------
     // Gen Jet->RECO:old one-to-many jet  matching 
     //----------------------------
-/*    if (bestGenIndex >= 0 && matchedHSJet)
-    {
-        genJetMatched_all_[bestGenIndex] = 1;//This denominator GenJet was successfully reconstructed.
-    }*/
 
 // one-to-one matching performed later
     if (matchedAmbiguousJet)
@@ -1210,32 +1111,16 @@ if (!printedGenJets)
     puFracCount_truth_all_.push_back(puFracCount_truth);
     puFracPt_truth_all_.push_back(puFracPt_truth);
 
-    ++debugEvent;//For Debugging print
-
     if (isUnknownJet)
     {
         std::cout
             << "Unknown jet"
-            << "  pt=" << jet.pt()
-            << "  eta=" << jet.eta()
-            << "  matched=" << (bestGenIndex >= 0)
-            << "  bestDR=" << bestDR
             << std::endl;
     }
 
 
   }//End of for (const auto& jet : jetsIn)
 
-std::cout << "\nSorted candidates" << std::endl;
-
-for (const auto& cand : matchCandidates)
-{
-    std::cout
-        << "Reco " << cand.jetIndex
-        << "  Gen " << cand.genIndex
-        << "  dR = " << cand.dR
-        << std::endl;
-}
 //This sorts all possible RECO-GEN pairs from the smallest ΔR to the largest.
 std::sort(matchCandidates.begin(),
           matchCandidates.end(),
@@ -1249,84 +1134,23 @@ std::sort(matchCandidates.begin(),
 std::vector<int> recoAssigned(jetMatched_all_.size(), 0);
 std::vector<int> genAssigned(genJets.size(), 0);
 
-//-----Debugging print-------//
-static int debugEvent = 0;
-if (debugEvent < 20)
-{
-    std::cout << "\nSorted candidates\n";
-
-    for (const auto& c : matchCandidates)
-    {
-        std::cout
-            << "Reco " << c.jetIndex
-            << "  Gen " << c.genIndex
-            << "  dR = " << c.dR
-            << std::endl;
-    }
-
-    ++debugEvent;
-}//End of  if (debugEvent < 20)
 
 //Perform the one RECO-to-one GEN assignment:
 //Greedy minimum-ΔR assignment.
 for (const auto& cand : matchCandidates)
 {
     if (recoAssigned[cand.jetIndex])
-    {
-        std::cout
-            << "Rejected Reco " << cand.jetIndex
-            << " Gen " << cand.genIndex
-            << " (RECO already assigned)"
-            << std::endl;
         continue;
-    }
 
     if (genAssigned[cand.genIndex])
-    {
-        std::cout
-            << "Rejected Reco " << cand.jetIndex
-            << " Gen " << cand.genIndex
-            << " (GEN already assigned)"
-            << std::endl;
         continue;
-    }
 
     recoAssigned[cand.jetIndex] = 1;
     genAssigned[cand.genIndex] = 1;
 
-    std::cout
-        << "Accepted Reco " << cand.jetIndex
-        << " Gen " << cand.genIndex
-        << " dR = " << cand.dR
-        << std::endl;
-
     jetMatched_all_[cand.jetIndex] = 1;
     genJetMatched_all_[cand.genIndex] = 1;
-}
-
-//---Debugging Print------// 
-    static int debugMatchEvent = 0;
-
-    if (debugMatchEvent < 5)
-    {
-        int nAssignedReco = 0;
-        int nAssignedGen  = 0;
-
-        for (int x : recoAssigned)
-            if (x) ++nAssignedReco;
-
-        for (int x : genAssigned)
-            if (x) ++nAssignedGen;
-
-        std::cout
-            << "\n===== One-to-one matching =====\n"
-            << "Candidate pairs = " << matchCandidates.size()
-            << "\nAssigned RECO   = " << nAssignedReco
-            << "\nAssigned GEN    = " << nAssignedGen
-            << std::endl;
-
-        ++debugEvent;
-    }   
+}//End of for (const auto& cand : matchCandidates)
 
 genEtaDen_all_.clear();
 genMatchedDen_all_.clear();
@@ -1364,22 +1188,6 @@ for (size_t iGen = 0; iGen < genJets.size(); ++iGen)
       if (matched)
           ++nMatchedReco;//purity,mistag
   }//End of for (int matched : jetMatched_all_)
-
-  
-  //----Debuding print-----------//
- // std::cout
-//      << "jetMatched size = " << jetMatched_all_.size()
-//      << "  nMatchedReco = " << nMatchedReco
-//      << "  totalRecoJetsClean = " << totalRecoJetsClean
-//      << std::endl;
-
-  for (size_t i = 0; i < jetMatched_all_.size(); ++i)
-  {
-      std::cout << jetMatched_all_[i] << " ";
-  }
-  std::cout << std::endl;
- 
-//-----End of Debuding print========//
 
   purity_out =
   (totalRecoJetsClean > 0)//condition

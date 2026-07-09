@@ -882,6 +882,7 @@ struct MatchCandidate
 };
 
 std::vector<MatchCandidate> matchCandidates;
+std::vector<std::vector<MatchCandidate>> recoCandidates;
 
 for (const auto& genJet : genJets)
 {
@@ -890,9 +891,10 @@ for (const auto& genJet : genJets)
 }
 
 genMatchedDen_all_.assign(genJets.size(), 0);
-
-
 std::vector<int> genJetAlreadyUsed(genJets.size(),0);
+
+recoCandidates.clear();
+recoCandidates.resize(jetsIn.size());
 for (const auto& jet : jetsIn)
 {
     std::vector<unsigned int> pf_indices_this_jet;
@@ -978,7 +980,7 @@ for (const auto& jet : jetsIn)
 
 //one-to-one nearest-neighbor matching need, where each GenJet can be matched to at most one RECO jet.
 
-    //Find Matched  GENjet
+    //GEN loop:Find Matched  GENjet
     for (size_t iGen = 0; iGen < genJets.size(); ++iGen)
     {
         const auto& genJet = genJets[iGen];
@@ -989,8 +991,8 @@ for (const auto& jet : jetsIn)
                             genJet.eta(), genJet.phi());
         //All valid RECO-GEN pairs are now stored
         if (dR < 1.0)
-        {
-            matchCandidates.push_back(
+        {   //every RECO jet has its own candidate list
+            recoCandidates[thisJetIndex].push_back(
             {
                 thisJetIndex,
                 static_cast<int>(iGen),
@@ -1042,14 +1044,19 @@ for (const auto& jet : jetsIn)
 
   }//End of for (const auto& jet : jetsIn)
 
-//This sorts all possible RECO-GEN pairs from the smallest ΔR to the largest.
-std::sort(matchCandidates.begin(),
-          matchCandidates.end(),
-          [](const MatchCandidate& a,
-             const MatchCandidate& b)
-          {
-              return a.dR < b.dR;
-          });
+
+//Sort each RECO jet's candidate list by deltaR
+for (auto& candList : recoCandidates)
+{
+    std::sort(
+        candList.begin(),
+        candList.end(),
+        [](const MatchCandidate& a,
+           const MatchCandidate& b)
+        {
+            return a.dR < b.dR;
+        });
+}
 
 // Assignment maps
 std::vector<int> assignedGenIndex(jetMatched_all_.size(), -1);
@@ -1057,22 +1064,25 @@ std::vector<int> assignedRecoIndex(genJets.size(), -1);
 std::vector<float> assignedDR(jetMatched_all_.size(), -1.f);
 
 //Perform the one RECO-to-one GEN assignment:
-//Greedy minimum-ΔR assignment.
-for (const auto& cand : matchCandidates)
+//Greedy minimum deltaR assignment.
+//Uses the alternative candidates that It'has been storing.
+for (size_t iReco = 0; iReco < recoCandidates.size(); ++iReco)
 {
-    if (assignedGenIndex[cand.jetIndex] != -1)
-        continue;
+    for (const auto& cand : recoCandidates[iReco])
+    {
+        if (assignedRecoIndex[cand.genIndex] != -1)
+            continue;
 
-    if (assignedRecoIndex[cand.genIndex] != -1)
-        continue;
+        assignedGenIndex[iReco] = cand.genIndex;
+        assignedRecoIndex[cand.genIndex] = iReco;
+        assignedDR[iReco] = cand.dR;
 
-    assignedGenIndex[cand.jetIndex] = cand.genIndex;
-    assignedRecoIndex[cand.genIndex] = cand.jetIndex;
-    assignedDR[cand.jetIndex] = cand.dR;
+        jetMatched_all_[iReco] = 1;
+        genJetMatched_all_[cand.genIndex] = 1;
 
-    jetMatched_all_[cand.jetIndex] = 1;
-    genJetMatched_all_[cand.genIndex] = 1;
-}//End of for (const auto& cand : matchCandidates)
+        break;
+    }
+}//End of for (size_t iReco = 0; iReco < recoCandidates.size(); ++iReco)
 
 //The new classification loop
 const float dR_HS = 0.2f;

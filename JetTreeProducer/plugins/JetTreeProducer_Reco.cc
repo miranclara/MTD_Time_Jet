@@ -847,13 +847,17 @@ auto processFastJetCollection = [&](const std::vector<fastjet::PseudoJet>& jetsI
                                 float& mistag,
                                 float& purity_out) {
 
-//Initialize
 //Loop over RECO jets
-//Fill genJetMatched_all_
-//Loop over GenJets
-//genEtaDen_all_
-//genMatchedDen_all_
-//Calculate efficiency
+//Find nearest GEN
+//Store candidate only
+//Finish loop
+//Greedy one-to-one assignment
+//NOW classify every jet
+//Compute counters
+//Compute purity
+//efficiency
+//mistag
+//PU fraction
 
 //Initialize the vector and the denominator
 totalRecoJetsClean = 0;
@@ -876,9 +880,8 @@ struct MatchCandidate
     int genIndex;
     float dR;
 };
-std::vector<MatchCandidate> matchCandidates;
 
-//int totalGenJets = 0;
+std::vector<MatchCandidate> matchCandidates;
 
 for (const auto& genJet : genJets)
 {
@@ -910,6 +913,7 @@ for (const auto& jet : jetsIn)
     jetPt_all_.push_back(jet.pt());
     jetAbsEta_all_.push_back(std::abs(jet.eta()));
     jetPhi_all_.push_back(jet.phi());
+    int thisJetIndex = jetPt_all_.size() - 1;
 
     int nHS = 0;
     int nPU = 0;
@@ -972,10 +976,6 @@ for (const auto& jet : jetsIn)
     bool constituentHSJet = (!isUnknownJet && sumPtHS >= sumPtPU);
 //    bool constituentPUJet = (!isUnknownJet && !constituentHSJet);
 
-    const reco::GenJet* bestGenJet = nullptr;
-    int bestGenIndex = -1;
-    float bestDR = 999.f;
-
 //one-to-one nearest-neighbor matching need, where each GenJet can be matched to at most one RECO jet.
 
     //Find Matched  GENjet
@@ -987,100 +987,38 @@ for (const auto& jet : jetsIn)
 
         float dR = reco::deltaR(jet.eta(), jet.phi(),
                             genJet.eta(), genJet.phi());
-
-        if (dR < 1.0 && dR < bestDR)
+        //All valid RECO-GEN pairs are now stored
+        if (dR < 1.0)
         {
-            bestDR = dR;
-            bestGenJet = &genJet;
-            bestGenIndex = static_cast<int>(iGen);
-        }//end of if (dR < 1.0 && dR < bestDR)
+            matchCandidates.push_back(
+            {
+                thisJetIndex,
+                static_cast<int>(iGen),
+                dR
+            });
+
+        }//End of  if (dR < 1.0)
+
     }//for (size_t iGen = 0; iGen < genJets.size(); ++iGen)
 
-    jetDeltaR_all_.push_back(bestDR);
-    const float dR_HS = 0.2f;
-    const float dR_PU = 0.4f;
+//    jetDeltaR_all_.push_back(bestDR);
+    jetDeltaR_all_.push_back(-1.f);
 
-    bool matchedHSJet = false;
-    bool matchedPUJet = false;
-    bool matchedAmbiguousJet = false;
-//------OLD----------------------
 
-    if (bestGenJet != nullptr)
-    {
-        if (bestDR <= dR_HS)
-        {
-            matchedHSJet = true;
-        }
-        else if (bestDR >= dR_PU)
-        {
-            matchedPUJet = true;
-        }
-        else
-        {
-            matchedAmbiguousJet = true;
-        }    
-    }
-    else
-    {
-        matchedPUJet = true;
-    }
+//    jetMatched_all_.push_back(bestGenJet ? 1 : 0);
+     jetMatched_all_.push_back(0);
 
-    int thisJetIndex = jetPt_all_.size() - 1;
+//    genPt_all_.push_back(bestGenJet ? bestGenJet->pt() : -1.f);
+//    genEta_all_.push_back(bestGenJet ? std::abs(bestGenJet->eta()) : -1.f);
+    genPt_all_.push_back(-1.f);
+    genEta_all_.push_back(-1.f);
 
-    if (bestGenIndex >= 0)
-    {
-        matchCandidates.push_back(
-            {thisJetIndex, bestGenIndex, bestDR});
-    }
-/*
-//------NEW:For one to one matching----------
-//Apply the one-to-one requirement to the HS region (ΔR < dR_HS).
-//1.Find all candidate RECO→GEN matches.
-//2.Sort by ΔR.
-//3.Assign each GenJet only once, keeping the smallest ΔR match.
+//    float response = -1.f;
+//    if (bestGenJet && bestGenJet->pt() > 0.f)
+//        response = jet.pt() / bestGenJet->pt();
 
-if (bestGenJet != nullptr)
-{
-    if (bestDR <= dR_HS)
-    {
-        if (!genJetAlreadyUsed[bestGenIndex])
-        {
-            matchedHSJet = true;
-            genJetAlreadyUsed[bestGenIndex] = 1;
-        }
-        else
-        {
-            matchedAmbiguousJet = true;
-        }
-    }
-    else if (bestDR >= dR_PU)
-    {
-        matchedPUJet = true;
-    }
-    else
-    {
-        matchedAmbiguousJet = true;
-    }
-}
-else
-{
-    matchedPUJet = true;
-}
-//-----END-NEW:For one to one matching-------------------------------------
-*/
-
-    jetMatched_all_.push_back(bestGenJet ? 1 : 0);
-
-    genPt_all_.push_back(bestGenJet ? bestGenJet->pt() : -1.f);
-
-    genEta_all_.push_back(bestGenJet ? std::abs(bestGenJet->eta()) : -1.f);
-
-    float response = -1.f;
-
-    if (bestGenJet && bestGenJet->pt() > 0.f)
-        response = jet.pt() / bestGenJet->pt();
-
-    jetResponse_all_.push_back(response);
+//    jetResponse_all_.push_back(response);
+    jetResponse_all_.push_back(-1.f);
     //----------------------------
     // RECO -> GEN:old one-to-many jet matching
     //----------------------------
@@ -1089,24 +1027,7 @@ else
     // Gen Jet->RECO:old one-to-many jet  matching 
     //----------------------------
 
-// one-to-one matching performed later
-    if (matchedAmbiguousJet)
-    {
-        // Do not count ambiguous jets
-    }
-    else if (matchedHSJet)
-    {
-        ++totalRecoJetsClean;
-    }
-    else
-    {
-        ++totalPUJets;
-    }   
-
     // Store one value per jet
-    jetIsHS_all_.push_back(matchedHSJet ? 1 : 0);
-    jetIsPU_all_.push_back(matchedPUJet ? 1 : 0);
-    jetIsAmbiguous_all_.push_back(matchedAmbiguousJet ? 1 : 0);
     jetIsUnknown_all_.push_back(isUnknownJet ? 1 : 0);
     puFracCount_truth_all_.push_back(puFracCount_truth);
     puFracPt_truth_all_.push_back(puFracPt_truth);
@@ -1130,30 +1051,98 @@ std::sort(matchCandidates.begin(),
               return a.dR < b.dR;
           });
 
-//Keep track of which jets are already used
-std::vector<int> recoAssigned(jetMatched_all_.size(), 0);
-std::vector<int> genAssigned(genJets.size(), 0);
-
+// Assignment maps
+std::vector<int> assignedGenIndex(jetMatched_all_.size(), -1);
+std::vector<int> assignedRecoIndex(genJets.size(), -1);
+std::vector<float> assignedDR(jetMatched_all_.size(), -1.f);
 
 //Perform the one RECO-to-one GEN assignment:
 //Greedy minimum-ΔR assignment.
 for (const auto& cand : matchCandidates)
 {
-    if (recoAssigned[cand.jetIndex])
+    if (assignedGenIndex[cand.jetIndex] != -1)
         continue;
 
-    if (genAssigned[cand.genIndex])
+    if (assignedRecoIndex[cand.genIndex] != -1)
         continue;
 
-    recoAssigned[cand.jetIndex] = 1;
-    genAssigned[cand.genIndex] = 1;
+    assignedGenIndex[cand.jetIndex] = cand.genIndex;
+    assignedRecoIndex[cand.genIndex] = cand.jetIndex;
+    assignedDR[cand.jetIndex] = cand.dR;
 
     jetMatched_all_[cand.jetIndex] = 1;
     genJetMatched_all_[cand.genIndex] = 1;
 }//End of for (const auto& cand : matchCandidates)
 
+//The new classification loop
+const float dR_HS = 0.2f;
+const float dR_PU = 0.4f;
+
+jetIsHS_all_.clear();
+jetIsPU_all_.clear();
+jetIsAmbiguous_all_.clear();
+
+totalRecoJetsClean = 0;
+totalPUJets = 0;
+
+for (size_t iReco = 0; iReco < jetMatched_all_.size(); ++iReco)
+{
+    bool matchedHSJet = false;
+    bool matchedPUJet = false;
+    bool matchedAmbiguousJet = false;
+
+    int iGen = assignedGenIndex[iReco];
+
+    if (iGen == -1)
+    {
+        matchedPUJet = true;
+    }
+    else
+    {   
+      float dR = assignedDR[iReco];
+        if (dR <= dR_HS)
+            matchedHSJet = true;
+        else if (dR >= dR_PU)
+            matchedPUJet = true;
+        else
+            matchedAmbiguousJet = true;
+    }
+
+
+    if (matchedHSJet)
+        ++totalRecoJetsClean;
+    else if (matchedPUJet)
+        ++totalPUJets;
+
+    jetIsHS_all_.push_back(matchedHSJet);
+    jetIsPU_all_.push_back(matchedPUJet);
+    jetIsAmbiguous_all_.push_back(matchedAmbiguousJet);
+}//End of for (size_t iReco = 0; iReco < jetMatched_all_.size(); ++iReco)
+
 genEtaDen_all_.clear();
+for (size_t iReco = 0; iReco < assignedGenIndex.size(); ++iReco)
+{
+    int iGen = assignedGenIndex[iReco];
+
+    if (iGen < 0)
+        continue;
+
+    genPt_all_[iReco] = genJets[iGen].pt();
+
+    genEta_all_[iReco] = std::abs(genJets[iGen].eta());
+
+    jetDeltaR_all_[iReco] = assignedDR[iReco];
+
+    if (genJets[iGen].pt() > 0.f)
+    {
+        jetResponse_all_[iReco] =
+            jetPt_all_[iReco] / genJets[iGen].pt();
+    }
+}
+
 genMatchedDen_all_.clear();
+
+
 for (size_t iGen = 0; iGen < genJets.size(); ++iGen)
 {
     if (genJets[iGen].pt() < 20.) continue;
@@ -1174,13 +1163,6 @@ for (size_t iGen = 0; iGen < genJets.size(); ++iGen)
       if (matched)
           ++nGenMatched;//efficiency= matched GenJets/total GenJets
   }
-//---SAME AS:range-based for loop----------
-//  int nGenMatched = 0;
-//  for (size_t i=0; i<genJetMatched_all_.size(); ++i)
-//  {
-//      if (genJetMatched_all_[i] == 1)
-//          ++nGenMatched;
-//  }
 
 //---Purity(Reco->Gen)--------
   for (int matched : jetMatched_all_)

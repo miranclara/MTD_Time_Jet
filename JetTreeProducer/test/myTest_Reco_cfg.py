@@ -1,7 +1,7 @@
 import os
 import FWCore.ParameterSet.Config as cms
 from Configuration.Eras.Era_Phase2C17I13M9_cff import Phase2C17I13M9
-from FWCore.ParameterSet.Types import FileInPath
+#from FWCore.ParameterSet.Types import FileInPath
 
 process = cms.Process('MyJetAnalysis',Phase2C17I13M9)
 from FWCore.Utilities.FileUtils import loadListFromFile
@@ -28,16 +28,16 @@ inputFileList = os.path.join(
 process.source = cms.Source(
     "PoolSource",
     skipBadFiles = cms.untracked.bool(True),
-#    fileNames = cms.untracked.vstring('/store/relval/CMSSW_16_1_0_pre2/RelValQCD_Pt15To7000_Flat_14/GEN-SIM-RECO/150X_mcRun4_realistic_v1_STD_RegeneratedGS_Run4D110_noPU-v1/2590000/25b00bb4-c8d4-4c39-8324-8f7cb59b5447.root'),
+#    fileNames = cms.untracked.vstring('/store/relval/CMSSW_17_0_0_pre1/RelValQCD_Pt15To7000_Flat_14/GEN-SIM-RECO/PU_150X_mcRun4_realistic_v1_STD_D121_RegeneratedGS_PU-v1/2590000/97f5a31f-03c2-4c35-a2d2-d2578427df77.root'),
 #  inputCommands = cms.untracked.vstring(
 #          'keep *',
 #          'drop l1tTkPrimaryVertexs_L1TkPrimaryVertex__RECO'
 #      )
 
     fileNames = cms.untracked.vstring(
-        *loadListFromFile("MyAnalysis/JetTreeProducer/test/inputFiles_200PU.txt")
+#        *loadListFromFile("MyAnalysis/JetTreeProducer/test/inputFiles_200PU.txt")
+        *loadListFromFile("MyAnalysis/JetTreeProducer/test/inputFiles_noPU.txt")
 #        *loadListFromFile("inputFiles_200PU.txt")
-
     )
 )
 
@@ -46,8 +46,8 @@ process.source = cms.Source(
 
 # Max events
 process.maxEvents = cms.untracked.PSet(
-    input = cms.untracked.int32(-1)  # process all events(-1)
-#    input = cms.untracked.int32(10)  # For test run
+#    input = cms.untracked.int32(-1)  # process all events(-1)
+    input = cms.untracked.int32(20)  # For test run
 )
 
 # JetTreeProducer configuration
@@ -59,7 +59,8 @@ process.jetTree = cms.EDAnalyzer("JetTreeProducer_Reco",
     vertices = cms.InputTag("offlinePrimaryVertices"),
 
     trackTimeTag = cms.InputTag("tofPID","t0"),
-    trackTimeErrTag = cms.InputTag("tofPID","sigmat0")
+    trackTimeErrTag = cms.InputTag("tofPID","sigmat0"),
+    genJetsTag = cms.InputTag("ak4GenJetsNoNu")
     #Jets input tag
 #    jetTag = cms.InputTag("slimmedJetsPuppi"),#AK4 PUPPI jets.
 #    jetTag = cms.InputTag("slimmedJets"),#AK4 PFchs jets (PF candidates with CHS pileup subtraction)
@@ -93,16 +94,9 @@ process.options.numberOfStreams = 1
 
 #Output configuration
 process.TFileService = cms.Service("TFileService",
-  fileName = cms.string('jetTree_QCD_200PU_test.root'),  # This is where the flat ROOT file will be stored
-#  fileName = cms.string('jetTree_QCD_200PU_PFincldNEUTRAL_dzCut3D_newHR_PVcut_packedGEN_PFmatch_GenMatch_dRgenAsso_NewVZ_timeJet_dZ1dZ2_dtSig3_NEWdRbis_dzdtDecoupled.root'),  # This is where the flat ROOT file will be stored
-#  fileName = cms.string('jetTree_QCD_noPU_PFincldNEUTRAL_dzCut3D_newHR_PVcut_packedGEN_PFmatch_GenMatch_dRgenAsso_NewVZ_timeJet_dZcutFirst.root'),  # This is where the flat ROOT file will be stored
-#  fileName = cms.string('jetTree_QCD_200PU_PFincldNEUTRAL_dzCut3D_newHR_PVcut_packedGEN_PFmatch_GenMatch_dRgenAsso_dRTune.root'),  # This is where the flat ROOT file will be stored
-#  fileName = cms.string('jetTree_QCD_noPU_PFincldNEUTRAL.root'),  # This is where the flat ROOT file will be stored
-#  fileName = cms.string('/eos/user/m/mrkim/JetTreeOutput/jetTree_QCD_200PU_PFincldNEUTRAL.root'),  # This is where the flat ROOT file will be stored
-#  fileName = cms.string('/eos/user/m/mrkim/JetTreeOutput/jetTree_QCD_noPU_PFincldNEUTRAL_dzCut3D_newHR.root'),  # This is where the flat ROOT file will be stored
-#  fileName = cms.string("root://eosuser.cern.ch//eos/user/m/mrkim/JetTreeOutput/jetTree_QCD_noPU_PFincldNEUTRAL_dzCut3D_newHR.root"),  # This is where the flat ROOT file will be stored
-#  fileName = cms.string('/eos/user/m/mrkim/JetTreeOutput/jetTree_QCD_noPU_PFincldNEUTRAL_dzCut3D_newHR_PVcut_packedGEN_PFmatch.root'),  # This is where the flat ROOT file will be stored
-#  fileName = cms.string('/eos/user/m/mrkim/JetTreeOutput/jetTree_QCD_200PU_PFincldNEUTRAL_dzCut3D_newHR_PVcut_packedGEN_PFmatch.root'),  # This is where the flat ROOT file will be stored
+  fileName = cms.string('test.root'),  # This is where the flat ROOT file will be stored
+#  fileName = cms.string('jetTree_QCD_200PU_test.root'),  # This is where the flat ROOT file will be stored
+#  fileName = cms.string('jetTree_QCD_noPU_test.root'),  # This is where the flat ROOT file will be stored
   closeFileFast = cms.untracked.bool(True)
 )
 # Path

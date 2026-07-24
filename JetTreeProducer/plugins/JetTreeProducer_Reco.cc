@@ -149,6 +149,7 @@ private:
     std::vector<int> jetIsAmbiguous_puppi_all_;
     std::vector<int> jetIsUnknown_puppi_all_;
     std::vector<float> jetPt_puppi_all_;
+    std::vector<float> jetEta_puppi_all_;
     std::vector<float> jetAbsEta_puppi_all_;
     std::vector<float> jetPhi_puppi_all_;
     std::vector<std::vector<unsigned int>> jet_pfIndices_puppi_all_;
@@ -185,6 +186,7 @@ private:
     std::vector<int> jetIsAmbiguous_pfraw_all_;
     std::vector<int> jetIsUnknown_pfraw_all_;
     std::vector<float> jetPt_pfraw_all_;
+    std::vector<float> jetEta_pfraw_all_;
     std::vector<float> jetAbsEta_pfraw_all_;
     std::vector<float> jetPhi_pfraw_all_;
     std::vector<std::vector<unsigned int>> jet_pfIndices_pfraw_all_;
@@ -222,6 +224,7 @@ private:
     std::vector<int> jetIsAmbiguous_loose_all_;
     std::vector<int> jetIsUnknown_loose_all_;
     std::vector<float> jetPt_loose_all_;
+    std::vector<float> jetEta_loose_all_;
     std::vector<float> jetAbsEta_loose_all_;
     std::vector<float> jetPhi_loose_all_;
     std::vector<std::vector<unsigned int>> jet_pfIndices_loose_all_;
@@ -259,6 +262,7 @@ private:
     std::vector<int> jetIsAmbiguous_tight_all_;
     std::vector<int> jetIsUnknown_tight_all_;
     std::vector<float> jetPt_tight_all_;
+    std::vector<float> jetEta_tight_all_;
     std::vector<float> jetAbsEta_tight_all_;
     std::vector<float> jetPhi_tight_all_;
     std::vector<std::vector<unsigned int>> jet_pfIndices_tight_all_;
@@ -296,6 +300,7 @@ private:
     std::vector<int> jetIsAmbiguous_time_all_;
     std::vector<int> jetIsUnknown_time_all_;
     std::vector<float> jetPt_time_all_;
+    std::vector<float> jetEta_time_all_;
     std::vector<float> jetAbsEta_time_all_;
     std::vector<float> jetPhi_time_all_;
     std::vector<std::vector<unsigned int>> jet_pfIndices_time_all_;
@@ -333,6 +338,7 @@ private:
     std::vector<int> jetIsAmbiguous_time4D_all_;
     std::vector<int> jetIsUnknown_time4D_all_;
     std::vector<float> jetPt_time4D_all_;
+    std::vector<float> jetEta_time4D_all_;
     std::vector<float> jetAbsEta_time4D_all_;
     std::vector<float> jetPhi_time4D_all_;
     std::vector<std::vector<unsigned int>> jet_pfIndices_time4D_all_;
@@ -450,6 +456,7 @@ void JetTreeProducer_Reco::beginJob()
     tree_->Branch("genEta_puppi_all", &genEta_puppi_all_);
     tree_->Branch("genEtaDen_puppi_all", &genEtaDen_puppi_all_);
     tree_->Branch("genMatchedDen_puppi_all", &genMatchedDen_puppi_all_);
+    tree_->Branch("jetEta_puppi_all", &jetEta_puppi_all_);
     tree_->Branch("jetAbsEta_puppi_all", &jetAbsEta_puppi_all_);
     tree_->Branch("puFracPt_algo_puppi_all", &puFracPt_algo_puppi_all_);
     tree_->Branch("puFracCount_algo_puppi_all", &puFracCount_algo_puppi_all_);
@@ -484,6 +491,7 @@ void JetTreeProducer_Reco::beginJob()
     tree_->Branch("genEta_pfraw_all", &genEta_pfraw_all_);
     tree_->Branch("genEtaDen_pfraw_all", &genEtaDen_pfraw_all_);
     tree_->Branch("genMatchedDen_pfraw_all", &genMatchedDen_pfraw_all_);
+    tree_->Branch("jetEta_pfraw_all", &jetEta_pfraw_all_);
     tree_->Branch("jetAbsEta_pfraw_all", &jetAbsEta_pfraw_all_);
     tree_->Branch("puFracPt_algo_pfraw_all", &puFracPt_algo_pfraw_all_);
     tree_->Branch("puFracCount_algo_pfraw_all", &puFracCount_algo_pfraw_all_);
@@ -519,6 +527,7 @@ void JetTreeProducer_Reco::beginJob()
     tree_->Branch("genEta_loose_all", &genEta_loose_all_);
     tree_->Branch("genEtaDen_loose_all", &genEtaDen_loose_all_);
     tree_->Branch("genMatchedDen_loose_all", &genMatchedDen_loose_all_);
+    tree_->Branch("jetEta_loose_all", &jetEta_loose_all_);
     tree_->Branch("jetAbsEta_loose_all", &jetAbsEta_loose_all_);
     tree_->Branch("puFracPt_algo_loose_all", &puFracPt_algo_loose_all_);
     tree_->Branch("puFracCount_algo_loose_all", &puFracCount_algo_loose_all_);
@@ -554,6 +563,7 @@ void JetTreeProducer_Reco::beginJob()
     tree_->Branch("genEta_tight_all", &genEta_tight_all_);
     tree_->Branch("genEtaDen_tight_all", &genEtaDen_tight_all_);
     tree_->Branch("genMatchedDen_tight_all", &genMatchedDen_tight_all_);
+    tree_->Branch("jetEta_tight_all", &jetEta_tight_all_);
     tree_->Branch("jetAbsEta_tight_all", &jetAbsEta_tight_all_);
     tree_->Branch("puFracPt_algo_tight_all", &puFracPt_algo_tight_all_);
     tree_->Branch("puFracCount_algo_tight_all", &puFracCount_algo_tight_all_);
@@ -589,6 +599,7 @@ void JetTreeProducer_Reco::beginJob()
     tree_->Branch("genEta_time_all", &genEta_time_all_);
     tree_->Branch("genEtaDen_time_all", &genEtaDen_time_all_);
     tree_->Branch("genMatchedDen_time_all", &genMatchedDen_time_all_);
+    tree_->Branch("jetEta_time_all", &jetEta_time_all_);
     tree_->Branch("jetAbsEta_time_all", &jetAbsEta_time_all_);
     tree_->Branch("puFracPt_algo_time_all", &puFracPt_algo_time_all_);
     tree_->Branch("puFracCount_algo_time_all", &puFracCount_algo_time_all_);
@@ -624,6 +635,7 @@ void JetTreeProducer_Reco::beginJob()
     tree_->Branch("genEta_time4D_all", &genEta_time4D_all_);
     tree_->Branch("genEtaDen_time4D_all", &genEtaDen_time4D_all_);
     tree_->Branch("genMatchedDen_time4D_all", &genMatchedDen_time4D_all_);
+    tree_->Branch("jetEta_time4D_all", &jetEta_time4D_all_);
     tree_->Branch("jetAbsEta_time4D_all", &jetAbsEta_time4D_all_);
     tree_->Branch("puFracPt_algo_time4D_all", &puFracPt_algo_time4D_all_);
     tree_->Branch("puFracCount_algo_time4D_all", &puFracCount_algo_time4D_all_);
@@ -699,6 +711,7 @@ void JetTreeProducer_Reco::analyze(const edm::Event& iEvent,
     genEtaDen_puppi_all_.clear();
     genMatchedDen_puppi_all_.clear();
     jetResponse_PR_puppi_all_.clear();
+    jetEta_puppi_all_.clear();
     jetAbsEta_puppi_all_.clear();
     puFracPt_algo_puppi_all_.clear();
     puFracCount_algo_puppi_all_.clear();
@@ -721,6 +734,7 @@ void JetTreeProducer_Reco::analyze(const edm::Event& iEvent,
     genEtaDen_pfraw_all_.clear();
     genMatchedDen_pfraw_all_.clear();
     jetResponse_PR_pfraw_all_.clear();
+    jetEta_pfraw_all_.clear();
     jetAbsEta_pfraw_all_.clear();
     puFracPt_algo_pfraw_all_.clear();
     puFracCount_algo_pfraw_all_.clear();
@@ -744,6 +758,7 @@ void JetTreeProducer_Reco::analyze(const edm::Event& iEvent,
     genEtaDen_loose_all_.clear();
     genMatchedDen_loose_all_.clear();
     jetResponse_PR_loose_all_.clear();
+    jetEta_loose_all_.clear();
     jetAbsEta_loose_all_.clear();
     puFracPt_algo_loose_all_.clear();
     puFracCount_algo_loose_all_.clear();
@@ -767,6 +782,7 @@ void JetTreeProducer_Reco::analyze(const edm::Event& iEvent,
     genEtaDen_tight_all_.clear();
     genMatchedDen_tight_all_.clear();
     jetResponse_PR_tight_all_.clear();
+    jetEta_tight_all_.clear();
     jetAbsEta_tight_all_.clear();
     puFracPt_algo_tight_all_.clear();
     puFracCount_algo_tight_all_.clear();
@@ -790,6 +806,7 @@ void JetTreeProducer_Reco::analyze(const edm::Event& iEvent,
     genEtaDen_time_all_.clear();
     genMatchedDen_time_all_.clear();
     jetResponse_PR_time_all_.clear();
+    jetEta_time_all_.clear();
     jetAbsEta_time_all_.clear();
     puFracPt_algo_time_all_.clear();
     puFracCount_algo_time_all_.clear();
@@ -812,6 +829,7 @@ void JetTreeProducer_Reco::analyze(const edm::Event& iEvent,
     genEtaDen_time4D_all_.clear();
     genMatchedDen_time4D_all_.clear();
     jetResponse_PR_time4D_all_.clear();
+    jetEta_time4D_all_.clear();
     jetAbsEta_time4D_all_.clear();
     puFracPt_algo_time4D_all_.clear();
     puFracCount_algo_time4D_all_.clear();
@@ -824,6 +842,11 @@ void JetTreeProducer_Reco::analyze(const edm::Event& iEvent,
 
     edm::Handle<reco::PFJetCollection> jets;
     iEvent.getByToken(jetToken_, jets);
+    std::cout
+        << "\n=====================================\n"
+        << "Input jet collection size = "
+        << jets->size()
+        << std::endl;
 
     edm::Handle<reco::PFCandidateCollection> pfcands;
     iEvent.getByToken(pfToken_, pfcands);
@@ -1146,17 +1169,30 @@ void JetTreeProducer_Reco::analyze(const edm::Event& iEvent,
     // Fill FastJet collections
     // -----------------------------------
 
-    if (passesLooseCut)
+    if (!isCharged || !pf.trackRef().isAvailable())
+    {
+          
+        //neutral candidate+ no usable track information
         fjInputs_loose.push_back(pj);
-
-    if (passesTightCut)
         fjInputs_tight.push_back(pj);
-
-    if (passesTimeSelection)
         fjInputs_time.push_back(pj);
-
-    if (passes4D)
         fjInputs_time4D.push_back(pj);
+    }
+    else
+    {
+
+        if (passesLooseCut)
+            fjInputs_loose.push_back(pj);
+    
+        if (passesTightCut)
+            fjInputs_tight.push_back(pj);
+
+        if (passesTimeSelection)
+            fjInputs_time.push_back(pj);
+
+        if (passes4D)
+            fjInputs_time4D.push_back(pj);
+     }//end of if(!isCharged || !pf.trackRef().isAvailable()){}else{}       
   }//End of for (size_t i = 0; i < pfcands->size(); ++i)
 
 //std::cout
@@ -1170,19 +1206,19 @@ void JetTreeProducer_Reco::analyze(const edm::Event& iEvent,
 // Run the jet clustering algorithm on each collection
 fastjet::JetDefinition jetDef(fastjet::antikt_algorithm, 0.4);
 auto cs_raw = fastjet::ClusterSequence(fjInputs_raw, jetDef);
-auto pfrawJets = fastjet::sorted_by_pt(cs_raw.inclusive_jets(10.0));//return only jets with pt ≥ 10 GeV.
+auto pfrawJets = fastjet::sorted_by_pt(cs_raw.inclusive_jets(5.0));//return only jets with pt ≥ 10 GeV.
 
 auto cs_tight = fastjet::ClusterSequence(fjInputs_tight, jetDef);
-auto tightJets = fastjet::sorted_by_pt(cs_tight.inclusive_jets(10.0));
+auto tightJets = fastjet::sorted_by_pt(cs_tight.inclusive_jets(5.0));
 
 auto cs_loose = fastjet::ClusterSequence(fjInputs_loose, jetDef);
-auto looseJets = fastjet::sorted_by_pt(cs_loose.inclusive_jets(10.0));
+auto looseJets = fastjet::sorted_by_pt(cs_loose.inclusive_jets(5.0));
 
 auto cs_time = fastjet::ClusterSequence(fjInputs_time, jetDef);
-auto timeJets = fastjet::sorted_by_pt(cs_time.inclusive_jets(10.0));
+auto timeJets = fastjet::sorted_by_pt(cs_time.inclusive_jets(5.0));
 
 auto cs_time4D = fastjet::ClusterSequence(fjInputs_time4D, jetDef);
-auto timeJets4D = fastjet::sorted_by_pt(cs_time4D.inclusive_jets(10.0));
+auto timeJets4D = fastjet::sorted_by_pt(cs_time4D.inclusive_jets(5.0));
 
 //-----------The index of the original PF candidate------------//
 //,which makes immediate access, such as pf_pt[idx], No additional matching is needed.
@@ -1295,6 +1331,7 @@ auto processJetCollection = [&](const std::vector<reco::PFJet>& jetsIn,
                                 std::vector<int>& jetIsAmbiguous_all_,
                                 std::vector<int>& jetIsUnknown_all_,
                                 std::vector<float>& jetPt_all_,
+                                std::vector<float>& jetEta_all_,
                                 std::vector<float>& jetAbsEta_all_,
                                 std::vector<float>& jetPhi_all_,
                                 std::vector<std::vector<unsigned int>>& jet_pfIndices_all_,
@@ -1347,6 +1384,13 @@ effWithAmbig       = -1.f;
 mistag             = -1.f;
 purity_out         = -1.f;
 
+
+//    std::cout
+//        << "\n=====================================\n"
+//        << "processJetCollection(): jetsIn.size() = "
+//        << jetsIn.size()
+//        << std::endl;
+
 static size_t maxRecoJetsMatched = 0;
 static size_t maxGenJetsMatched = 0;
 genJetMatched_all_.assign(genJets.size(), 0);
@@ -1363,6 +1407,7 @@ std::vector<std::vector<MatchCandidate>> recoCandidates;
 for (const auto& genJet : genJets)
 {
     if (genJet.pt() > 20.)
+//    if (genJet.pt() > 5.)
         ++totalGenJets;
 }
 
@@ -1371,10 +1416,12 @@ std::vector<int> genJetAlreadyUsed(genJets.size(),0);
 
 recoCandidates.clear();
 recoCandidates.resize(jetsIn.size());
+int iJet=0;
 for (const auto& jet : jetsIn)
 {
     std::vector<unsigned int> pf_indices_this_jet;
     pf_indices_this_jet = getPFIndicesFromPFJet(jet);
+    if (jet.pt() < 20.) continue;//Constrain of Reco jet Pt
 
 //    std::cout
 //      << "PF indices found = "
@@ -1382,11 +1429,59 @@ for (const auto& jet : jetsIn)
 //      << std::endl;
 
 
+//    std::cout
+//        << "\n=====================================\n"
+//        << "processJetCollection(): jetsIn.size() = "
+//        << "Jet " << iJet
+//        << "  pt=" << jet.pt()
+//        << "  nConst = " << jet.getJetConstituents().size()
+//        << std::endl;
+
+
+        for (size_t i = 0; i < std::min(size_t(10), pf_indices_this_jet.size()); ++i)
+        {
+            unsigned int idx = pf_indices_this_jet[i];
+
+//            std::cout
+//                << "  constituent " << i
+//                << "  PF index = " << idx;
+
+            if (idx < pfcands->size())
+            {
+                const auto& pf = pfcands->at(idx);
+
+//                std::cout
+//                    << "  pt=" << pf.pt()
+//                    << "  charge=" << pf.charge();
+            }
+
+//            std::cout << std::endl;
+        }//End of for (size_t i = 0; i < std::min(size_t(10), pf_indices_this_jet.size()); ++i)
+
+        double sumPt = 0;
+
+        for (auto idx : pf_indices_this_jet)
+        {
+            if (idx >= pfcands->size())
+                continue;
+
+            sumPt += pfcands->at(idx).pt();
+        }
+
+//        std::cout
+//            << "Jet pt = " << jet.pt()
+//            << "   sum constituent pt = "
+//            << sumPt
+//            << std::endl;
+
+
+
     jet_pfIndices_all_.push_back(pf_indices_this_jet);
     pf_indices_general_all_.push_back(pf_indices_this_jet);
 
     jetPt_all_.push_back(jet.pt());
-    jetAbsEta_all_.push_back(std::abs(jet.eta()));
+    jetEta_all_.push_back(jet.eta());              // signed η
+    jetAbsEta_all_.push_back(std::abs(jet.eta())); // |η| for plots
     jetPhi_all_.push_back(jet.phi());
     int thisJetIndex = jetPt_all_.size() - 1;
 
@@ -1416,6 +1511,14 @@ for (const auto& jet : jetsIn)
 
         sumPtTot += pf_pt[idx];
 
+//        //====Debugging=====//
+//        std::cout
+//           << "PF index = " << idx
+//           << "  pt = " << pf_pt[idx]
+//           << "  HS = " << pf_isHS_truth[idx]
+//           << "  PU = " << pf_isPU_truth[idx]
+//           << std::endl;
+           
         if (pf_isHS_truth[idx] == 1)
         {
             ++nHS;
@@ -1431,7 +1534,25 @@ for (const auto& jet : jetsIn)
         {
             sumPtUnknown += pf_pt[idx];
         }
-    }//End of for (unsigned int idx : pf_indices_this_jet), End of PF constituent loop
+
+        //====Debugging=====//
+//        if (iJet < 3)
+//        {
+//            std::cout << "\n===== Jet " << iJet << " summary =====\n";
+//            std::cout << "nHS        = " << nHS << '\n';
+//            std::cout << "nPU        = " << nPU << '\n';
+//            std::cout << "sumPtHS    = " << sumPtHS << '\n';
+//            std::cout << "sumPtPU    = " << sumPtPU << '\n';
+//            std::cout << "sumPtTotal = " << sumPtTot << '\n';
+//            std::cout << "PU frac(count) = "
+//                      << ((nHS + nPU) ? float(nPU)/(nHS+nPU) : -1)
+//                      << '\n';
+//            std::cout << "PU frac(pt) = "
+//                      << ((sumPtTot > 0) ? sumPtPU/sumPtTot : -1)
+//                      << "\n\n";
+//        }//end of if (iJet < 3)
+
+}//End of for (unsigned int idx : pf_indices_this_jet), End of PF constituent loop
 
     // Compute jet-level quantities AFTER all constituents have been counted
     // puFracCount_truth and puFracPt_truth are jet-level quantities, so they must be computed once per jet,after the constituent loop finishes.
@@ -1471,9 +1592,19 @@ for (const auto& jet : jetsIn)
 //one-to-one nearest-neighbor matching need, where each GenJet can be matched to at most one RECO jet.
 
     //GEN loop:Find Matched  GENjet
+    int nGenPt5 = 0;
+    int nGenPt20 = 0;
     for (size_t iGen = 0; iGen < genJets.size(); ++iGen)
     {
         const auto& genJet = genJets[iGen];
+
+        //---Debugging---//
+        if (genJet.pt() > 5.)
+                ++nGenPt5;
+
+        if (genJet.pt() > 20.)
+                ++nGenPt20;
+        //---Debugging End---//
 
         if (genJet.pt() < 20.) continue;
 
@@ -1531,7 +1662,7 @@ for (const auto& jet : jetsIn)
 //            << std::endl;
     }
 
-
+  iJet++;
   }//End of for (const auto& jet : jetsIn)
 
   maxRecoJetsMatched =
@@ -1545,16 +1676,17 @@ for (const auto& jet : jetsIn)
 //            << ", Gen jets = "
 //            << maxGenJetsMatched
 //            << std::endl;
-/*
-  if (jetMatched_all_.size() > 15 || genJets.size() > 15)
-  {
-    std::cout << "\n========== Matching Statistics ==========\n";
-    std::cout << "Reco jets entering matching : "
-            << jetMatched_all_.size() << std::endl;
-    std::cout << "Gen jets entering matching  : "
-            << genJets.size() << std::endl;
-  }
-*/
+
+
+//  if (jetMatched_all_.size() > 15 || genJets.size() > 15)
+//  {
+//    std::cout << "\n========== Matching Statistics ==========\n";
+//    std::cout << "Reco jets entering matching : "
+//            << jetMatched_all_.size() << std::endl;
+//    std::cout << "Gen jets entering matching  : "
+//            << genJets.size() << std::endl;
+//  }
+
 //Sort each RECO jet's candidate list by deltaR
 for (auto& candList : recoCandidates)
 {
@@ -1620,7 +1752,132 @@ for (size_t iReco = 0; iReco < jetMatched_all_.size(); ++iReco)
     bool matchedAmbiguousJet = false;
 
     int iGen = assignedGenIndex[iReco];
+/*
+    //----DEBUGGING-------//
+    std::cout
+    << "Reco "
+    << iReco
+    << " pt="
+    << jetPt_all_[iReco]
+    << " matched="
+    << (iGen!=-1)
+    << " dR="
+    << assignedDR[iReco];
 
+    if (iGen == -1)
+{
+    float bestDR = 999.f;
+    int bestGen = -1;
+
+    for (size_t ig = 0; ig < genJets.size(); ++ig)
+    {
+        float dr = reco::deltaR(
+            jetEta_all_[iReco],
+            jetPhi_all_[iReco],
+            genJets[ig].eta(),
+            genJets[ig].phi());
+
+        if (dr < bestDR)
+        {
+            bestDR = dr;
+            bestGen = ig;
+        }
+    }
+
+    std::cout
+        << "\n======= Unmatched RECO jet =======\n"
+        << "Reco index = " << iReco
+        << "  pt = " << jetPt_all_[iReco]
+        << std::endl;
+
+    bool bestGenPassPt = false;
+    if (bestGen != -1)
+    {
+        bestGenPassPt = (genJets[bestGen].pt() >= 20.);
+        std::cout
+            << "Nearest Gen index = " << bestGen
+            << "  pt = " << genJets[bestGen].pt()
+            << "  eta = " << genJets[bestGen].eta()
+            << "  dR = " << bestDR
+            << std::endl;
+
+        std::cout
+            << "\nNearest Gen already assigned to Reco = "
+            << assignedRecoIndex[bestGen]
+            << std::endl;
+       std::cout
+           << "Nearest Gen passes pT cut = "
+           << (bestGenPassPt ? "YES" : "NO")
+           << std::endl;
+
+       if (!bestGenPassPt)
+       {
+           std::cout
+               << "Reason : nearest Gen rejected by pT threshold"
+               << std::endl;
+       }
+       else if (assignedRecoIndex[bestGen] != -1)
+       {
+           std::cout
+               << "Reason : nearest Gen already assigned"
+               << std::endl;
+       }
+       else
+       {
+           std::cout
+               << "Reason : investigate matching logic"
+               << std::endl;
+       }
+    }//End of  if (bestGen != -1)
+
+    int nCharged = 0;
+    int nNeutral = 0;
+    float chargedPt = 0.f;
+    float neutralPt = 0.f;
+
+    for (unsigned int idx : jet_pfIndices_all_[iReco])
+    {
+        const auto& pf = pfcands->at(idx);
+
+        if (pf.charge() == 0)
+        {
+            ++nNeutral;
+            neutralPt += pf.pt();
+        }
+        else
+        {
+            ++nCharged;
+            chargedPt += pf.pt();
+        }
+    }
+
+    float neutralFraction =
+    (chargedPt + neutralPt > 0.f)
+        ? neutralPt/(chargedPt + neutralPt)
+        : -1.f;
+
+    std::cout
+        << "nCharged = " << nCharged
+        << "  nNeutral = " << nNeutral
+        << "  chargedPt = " << chargedPt
+        << "  neutralPt = " << neutralPt
+        << "  neutralFraction = "
+        << "  neutralFraction = " << neutralFraction
+        << std::endl;
+
+   int ownerReco = assignedRecoIndex[bestGen];
+
+   if (ownerReco != -1)
+   {
+       std::cout
+           << "\nNearest Gen is owned by Reco " << ownerReco
+           << " (owner dR = " << assignedDR[ownerReco] << ")"
+           << "\nCurrent Reco nearest dR = " << bestDR;
+   }//End of if (ownerReco != -1)
+ }// End of for if (iGen == -1)
+
+   //---DEBUBBING END-----//
+*/
     if (iGen == -1)
     {
         matchedPUJet = true;
@@ -1734,6 +1991,7 @@ for (size_t iGen = 0; iGen < genJets.size(); ++iGen)
 };//end of auto processJetCollection = [&](){
 
 
+
 auto processFastJetCollection = [&](const std::vector<fastjet::PseudoJet>& jetsIn,
                                 const std::vector<reco::GenJet>& genJets,
                                 std::vector<int>& jetMatched_all_,     // RECO → GEN match flag
@@ -1745,6 +2003,7 @@ auto processFastJetCollection = [&](const std::vector<fastjet::PseudoJet>& jetsI
                                 std::vector<int>& jetIsAmbiguous_all_,
                                 std::vector<int>& jetIsUnknown_all_,
                                 std::vector<float>& jetPt_all_,
+                                std::vector<float>& jetEta_all_,
                                 std::vector<float>& jetAbsEta_all_,
                                 std::vector<float>& jetPhi_all_,
                                 std::vector<std::vector<unsigned int>>& jet_pfIndices_all_,
@@ -1820,9 +2079,11 @@ std::vector<int> genJetAlreadyUsed(genJets.size(),0);
 
 recoCandidates.clear();
 recoCandidates.resize(jetsIn.size());
+int iJet=0;
 for (const auto& jet : jetsIn)
 {
     std::vector<unsigned int> pf_indices_this_jet;
+    if (jet.pt() < 20.) continue;//Constrain of Reco jet Pt
 
     for (const auto& constituent : jet.constituents())
     {
@@ -1834,11 +2095,57 @@ for (const auto& jet : jetsIn)
         pf_indices_this_jet.push_back(static_cast<unsigned int>(idx));
     }//End of for (const auto& constituent : jet.constituents())
 
+//    std::cout
+//        << "\n=====================================\n"
+//        << "processJetCollection(): jetsIn.size() = "
+//        << "Jet " << iJet
+//        << "  pt=" << jet.pt()
+//        << "  nConst = " << pf_indices_this_jet.size()
+//        << std::endl;
+
+
+        for (size_t i = 0; i < std::min(size_t(10), pf_indices_this_jet.size()); ++i)
+        {
+            unsigned int idx = pf_indices_this_jet[i];
+
+//            std::cout
+//                << "  constituent " << i
+//                << "  PF index = " << idx;
+
+            if (idx < pfcands->size())
+            {
+                const auto& pf = pfcands->at(idx);
+
+//                std::cout
+//                    << "  pt=" << pf.pt()
+//                    << "  charge=" << pf.charge();
+            }
+
+            std::cout << std::endl;
+        }//End of for (size_t i = 0; i < std::min(size_t(10), pf_indices_this_jet.size()); ++i)
+
+        double sumPt = 0;
+
+        for (auto idx : pf_indices_this_jet)
+        {
+            if (idx >= pfcands->size())
+                continue;
+
+            sumPt += pfcands->at(idx).pt();
+        }
+
+        std::cout
+            << "Jet pt = " << jet.pt()
+            << "   sum constituent pt = "
+            << sumPt
+            << std::endl;
+
     jet_pfIndices_all_.push_back(pf_indices_this_jet);
     pf_indices_general_all_.push_back(pf_indices_this_jet);
 
     jetPt_all_.push_back(jet.pt());
-    jetAbsEta_all_.push_back(std::abs(jet.eta()));
+    jetEta_all_.push_back(jet.eta());            // signed η
+    jetAbsEta_all_.push_back(std::abs(jet.eta()));// |η| for plots
     jetPhi_all_.push_back(jet.phi());
     int thisJetIndex = jetPt_all_.size() - 1;
 
@@ -1869,6 +2176,14 @@ for (const auto& jet : jetsIn)
 
         sumPtTot += pf_pt[idx];
 
+//        //====Debugging=====//
+//        std::cout
+//           << "PF index = " << idx
+//           << "  pt = " << pf_pt[idx]
+//           << "  HS = " << pf_isHS_truth[idx]
+//           << "  PU = " << pf_isPU_truth[idx]
+//           << std::endl;
+
         if (pf_isHS_truth[idx] == 1)
         {
             ++nHS;
@@ -1884,6 +2199,25 @@ for (const auto& jet : jetsIn)
         {
             sumPtUnknown += pf_pt[idx];
         }
+
+//        //====Debugging=====//
+//        if (iJet < 3)
+//        {
+//            std::cout << "\n===== Jet " << iJet << " summary =====\n";
+//            std::cout << "nHS        = " << nHS << '\n';
+//            std::cout << "nPU        = " << nPU << '\n';
+//            std::cout << "sumPtHS    = " << sumPtHS << '\n';
+//            std::cout << "sumPtPU    = " << sumPtPU << '\n';
+//            std::cout << "sumPtTotal = " << sumPtTot << '\n';
+//            std::cout << "PU frac(count) = "
+//                      << ((nHS + nPU) ? float(nPU)/(nHS+nPU) : -1)
+//                      << '\n';
+//            std::cout << "PU frac(pt) = "
+//                      << ((sumPtTot > 0) ? sumPtPU/sumPtTot : -1)
+//                      << "\n\n";
+//        }//end of if (iJet < 3)
+
+
     }//End of for (unsigned int idx : pf_indices_this_jet), End of PF constituent loop
 
     // Compute jet-level quantities AFTER all constituents have been counted
@@ -1916,11 +2250,19 @@ for (const auto& jet : jetsIn)
 
 //one-to-one nearest-neighbor matching need, where each GenJet can be matched to at most one RECO jet.
 
+    int nGenPt5 = 0;
+    int nGenPt20 = 0;
     //GEN loop:Find Matched  GENjet
     for (size_t iGen = 0; iGen < genJets.size(); ++iGen)
     {
         const auto& genJet = genJets[iGen];
+        //---Debugging---//
+        if (genJet.pt() > 5.)
+                ++nGenPt5;
 
+        if (genJet.pt() > 20.)
+                ++nGenPt20;
+        //---Debugging End---//
         if (genJet.pt() < 20.) continue;
 
         float dR = reco::deltaR(jet.eta(), jet.phi(),
@@ -1976,7 +2318,7 @@ for (const auto& jet : jetsIn)
 //            << "Unknown jet"
 //            << std::endl;
     }
-
+iJet++;
 
   }//End of for (const auto& jet : jetsIn)
 
@@ -1991,16 +2333,16 @@ for (const auto& jet : jetsIn)
 //            << ", Gen jets = "
 //            << maxGenJetsMatched
 //            << std::endl;
-/*
-  if (jetMatched_all_.size() > 15 || genJets.size() > 15)
-  {
-    std::cout << "\n========== Matching Statistics ==========\n";
-    std::cout << "Reco jets entering matching : "
-            << jetMatched_all_.size() << std::endl;
-    std::cout << "Gen jets entering matching  : "
-            << genJets.size() << std::endl;
-  }
-*/
+
+//  if (jetMatched_all_.size() > 15 || genJets.size() > 15)
+//  {
+//    std::cout << "\n========== Matching Statistics ==========\n";
+//    std::cout << "Reco jets entering matching : "
+//            << jetMatched_all_.size() << std::endl;
+//    std::cout << "Gen jets entering matching  : "
+//            << genJets.size() << std::endl;
+//  }
+
 
 //Sort each RECO jet's candidate list by deltaR
 for (auto& candList : recoCandidates)
@@ -2067,8 +2409,137 @@ for (size_t iReco = 0; iReco < jetMatched_all_.size(); ++iReco)
     bool matchedAmbiguousJet = false;
 
     int iGen = assignedGenIndex[iReco];
+/*
+    //----DEBUGGING-------//
+    std::cout
+    << "Reco "
+    << iReco
+    << " pt="
+    << jetPt_all_[iReco]
+    << " matched="
+    << (iGen!=-1)
+    << " dR="
+    << assignedDR[iReco];
 
     if (iGen == -1)
+{
+    float bestDR = 999.f;
+    int bestGen = -1;
+
+    for (size_t ig = 0; ig < genJets.size(); ++ig)
+    {
+        float dr = reco::deltaR(
+            jetEta_all_[iReco],
+            jetPhi_all_[iReco],
+            genJets[ig].eta(),
+            genJets[ig].phi());
+
+        if (dr < bestDR)
+        {
+            bestDR = dr;
+            bestGen = ig;
+        }
+    }
+
+    std::cout
+        << "\n======= Unmatched RECO jet =======\n"
+        << "Reco index = " << iReco
+        << "  pt = " << jetPt_all_[iReco]
+        << std::endl;
+
+    bool bestGenPassPt = false;
+
+    if (bestGen != -1)
+    {
+       bestGenPassPt = (genJets[bestGen].pt() >= 20.);
+       std::cout
+            << "Nearest Gen index = " << bestGen
+            << "  pt = " << genJets[bestGen].pt()
+            << "  eta = " << genJets[bestGen].eta()
+            << "  dR = " << bestDR
+            << std::endl;
+
+        std::cout
+            << "\nNearest Gen already assigned to Reco = "
+            << assignedRecoIndex[bestGen]
+            << std::endl;
+    
+       std::cout
+           << "Nearest Gen passes pT cut = "
+           << (bestGenPassPt ? "YES" : "NO")
+           << std::endl;
+
+       if (!bestGenPassPt)
+       {
+           std::cout
+               << "Reason : nearest Gen rejected by pT threshold"
+               << std::endl;
+       }
+       else if (assignedRecoIndex[bestGen] != -1)
+       {
+           std::cout
+               << "Reason : nearest Gen already assigned"
+               << std::endl;
+       }
+       else
+       {
+           std::cout
+               << "Reason : investigate matching logic"
+               << std::endl;
+       }
+
+    }//End of if (bestGen != -1)
+
+    int nCharged = 0;
+    int nNeutral = 0;
+    float chargedPt = 0.f;
+    float neutralPt = 0.f;
+
+    for (unsigned int idx : jet_pfIndices_all_[iReco])
+    {
+        const auto& pf = pfcands->at(idx);
+
+        if (pf.charge() == 0)
+        {
+            ++nNeutral;
+            neutralPt += pf.pt();
+        }
+        else
+        {
+            ++nCharged;
+            chargedPt += pf.pt();
+        }
+    }
+
+    float neutralFraction =
+    (chargedPt + neutralPt > 0.f)
+        ? neutralPt/(chargedPt + neutralPt)
+        : -1.f;
+
+    std::cout
+        << "nCharged = " << nCharged
+        << "  nNeutral = " << nNeutral
+        << "  chargedPt = " << chargedPt
+        << "  neutralPt = " << neutralPt
+        << "  neutralFraction = "
+        << "  neutralFraction = " << neutralFraction
+        << std::endl;
+
+   int ownerReco = assignedRecoIndex[bestGen];
+
+   if (ownerReco != -1)
+   {
+       std::cout
+           << "\nNearest Gen is owned by Reco " << ownerReco
+           << " (owner dR = " << assignedDR[ownerReco] << ")"
+           << "\nCurrent Reco nearest dR = " << bestDR;
+   }//End of if (ownerReco != -1)
+ }// End of for if (iGen == -1)
+
+   //---DEBUBBING END-----//
+*/
+
+    if (iGen== -1)
     {
         matchedPUJet = true;
     }
@@ -2183,34 +2654,35 @@ for (size_t iGen = 0; iGen < genJets.size(); ++iGen)
 
 
 processJetCollection(*jets,  genJets, jetMatched_puppi_all_, genJetMatched_puppi_all_, genMatchedDen_puppi_all_,
-    jetIsHS_puppi_all_,jetIsPU_puppi_all_,jetIsAmbiguous_puppi_all_,jetIsUnknown_puppi_all_, jetPt_puppi_all_, jetAbsEta_puppi_all_, jetPhi_puppi_all_, jet_pfIndices_puppi_all_, jetResponse_PR_puppi_all_,genPt_puppi_all_, genEta_puppi_all_, genEtaDen_puppi_all_,puFracPt_algo_puppi_all_, puFracCount_algo_puppi_all_, puFracPt_truth_puppi_all_, puFracCount_truth_puppi_all_,jetDeltaR_puppi_all_,pf_indices_puppi_all_,
+    jetIsHS_puppi_all_,jetIsPU_puppi_all_,jetIsAmbiguous_puppi_all_,jetIsUnknown_puppi_all_, jetPt_puppi_all_,jetEta_puppi_all_, jetAbsEta_puppi_all_, jetPhi_puppi_all_, jet_pfIndices_puppi_all_, jetResponse_PR_puppi_all_,genPt_puppi_all_, genEta_puppi_all_, genEtaDen_puppi_all_,puFracPt_algo_puppi_all_, puFracCount_algo_puppi_all_, puFracPt_truth_puppi_all_, puFracCount_truth_puppi_all_,jetDeltaR_puppi_all_,pf_indices_puppi_all_,
     totalRecoJetsClean_puppi, totalPUJets_puppi,totalGenJets_puppi,nGenMatched_puppi,nMatchedReco_puppi, puJetFraction_puppi_all_,efficiency_puppi_, effLossAmbig_puppi_,effWithAmbig_puppi_,mistag_puppi_, purity_puppi_);
 
 
+
 processFastJetCollection(pfrawJets,  genJets, jetMatched_pfraw_all_, genJetMatched_pfraw_all_, genMatchedDen_pfraw_all_,
-    jetIsHS_pfraw_all_, jetIsPU_pfraw_all_,jetIsAmbiguous_pfraw_all_,jetIsUnknown_pfraw_all_,jetPt_pfraw_all_, jetAbsEta_pfraw_all_, jetPhi_pfraw_all_, jet_pfIndices_pfraw_all_, jetResponse_PR_pfraw_all_,genPt_pfraw_all_, genEta_pfraw_all_, genEtaDen_pfraw_all_, puFracPt_algo_pfraw_all_, puFracCount_algo_pfraw_all_,puFracPt_truth_pfraw_all_, puFracCount_truth_pfraw_all_,jetDeltaR_pfraw_all_,pf_indices_pfraw_all_,
+    jetIsHS_pfraw_all_, jetIsPU_pfraw_all_,jetIsAmbiguous_pfraw_all_,jetIsUnknown_pfraw_all_,jetPt_pfraw_all_,jetEta_pfraw_all_, jetAbsEta_pfraw_all_, jetPhi_pfraw_all_, jet_pfIndices_pfraw_all_, jetResponse_PR_pfraw_all_,genPt_pfraw_all_, genEta_pfraw_all_, genEtaDen_pfraw_all_, puFracPt_algo_pfraw_all_, puFracCount_algo_pfraw_all_,puFracPt_truth_pfraw_all_, puFracCount_truth_pfraw_all_,jetDeltaR_pfraw_all_,pf_indices_pfraw_all_,
     totalRecoJetsClean_pfraw, totalPUJets_pfraw,totalGenJets_pfraw,nGenMatched_pfraw,nMatchedReco_pfraw, puJetFraction_pfraw_all_, efficiency_pfraw_, effLossAmbig_pfraw_, effWithAmbig_pfraw_, mistag_pfraw_, purity_pfraw_);
 
 
+
 processFastJetCollection(looseJets,  genJets, jetMatched_loose_all_, genJetMatched_loose_all_, genMatchedDen_loose_all_,
-    jetIsHS_loose_all_,jetIsPU_loose_all_,jetIsAmbiguous_loose_all_,jetIsUnknown_loose_all_, jetPt_loose_all_, jetAbsEta_loose_all_,jetPhi_loose_all_, jet_pfIndices_loose_all_, jetResponse_PR_loose_all_,genPt_loose_all_,genEta_loose_all_, genEtaDen_loose_all_, puFracPt_algo_loose_all_, puFracCount_algo_loose_all_,puFracPt_truth_loose_all_, puFracCount_truth_loose_all_,jetDeltaR_loose_all_,pf_indices_loose_all_,
+    jetIsHS_loose_all_,jetIsPU_loose_all_,jetIsAmbiguous_loose_all_,jetIsUnknown_loose_all_, jetPt_loose_all_,jetEta_loose_all_, jetAbsEta_loose_all_,jetPhi_loose_all_, jet_pfIndices_loose_all_, jetResponse_PR_loose_all_,genPt_loose_all_,genEta_loose_all_, genEtaDen_loose_all_, puFracPt_algo_loose_all_, puFracCount_algo_loose_all_,puFracPt_truth_loose_all_, puFracCount_truth_loose_all_,jetDeltaR_loose_all_,pf_indices_loose_all_,
     totalRecoJetsClean_loose, totalPUJets_loose,totalGenJets_loose,nGenMatched_loose,nMatchedReco_loose, puJetFraction_loose_all_, efficiency_loose_, effLossAmbig_loose_, effWithAmbig_loose_, mistag_loose_,purity_loose_);
 
 
 processFastJetCollection(tightJets,  genJets, jetMatched_tight_all_, genJetMatched_tight_all_, genMatchedDen_tight_all_,
-    jetIsHS_tight_all_,jetIsPU_tight_all_,jetIsAmbiguous_tight_all_,jetIsUnknown_tight_all_,jetPt_tight_all_, jetAbsEta_tight_all_, jetPhi_tight_all_, jet_pfIndices_tight_all_, jetResponse_PR_tight_all_,genPt_tight_all_, genEta_tight_all_, genEtaDen_tight_all_, puFracPt_algo_tight_all_, puFracCount_algo_tight_all_,puFracPt_truth_tight_all_, puFracCount_truth_tight_all_,jetDeltaR_tight_all_,pf_indices_tight_all_,
+    jetIsHS_tight_all_,jetIsPU_tight_all_,jetIsAmbiguous_tight_all_,jetIsUnknown_tight_all_,jetPt_tight_all_,jetEta_tight_all_, jetAbsEta_tight_all_, jetPhi_tight_all_, jet_pfIndices_tight_all_, jetResponse_PR_tight_all_,genPt_tight_all_, genEta_tight_all_, genEtaDen_tight_all_, puFracPt_algo_tight_all_, puFracCount_algo_tight_all_,puFracPt_truth_tight_all_, puFracCount_truth_tight_all_,jetDeltaR_tight_all_,pf_indices_tight_all_,
     totalRecoJetsClean_tight, totalPUJets_tight,totalGenJets_tight,nGenMatched_tight,nMatchedReco_tight, puJetFraction_tight_all_, efficiency_tight_, effLossAmbig_tight_, effWithAmbig_tight_, mistag_tight_, purity_tight_);
 
 
 processFastJetCollection(timeJets,  genJets, jetMatched_time_all_, genJetMatched_time_all_, genMatchedDen_time_all_,
-    jetIsHS_time_all_,jetIsPU_time_all_,jetIsAmbiguous_time_all_,jetIsUnknown_time_all_, jetPt_time_all_, jetAbsEta_time_all_, jetPhi_time_all_, jet_pfIndices_time_all_, jetResponse_PR_time_all_,genPt_time_all_,genEta_time_all_, genEtaDen_time_all_, puFracPt_algo_time_all_, puFracCount_algo_time_all_,puFracPt_truth_time_all_, puFracCount_truth_time_all_, jetDeltaR_time_all_,pf_indices_time_all_,
+    jetIsHS_time_all_,jetIsPU_time_all_,jetIsAmbiguous_time_all_,jetIsUnknown_time_all_, jetPt_time_all_,jetEta_time_all_, jetAbsEta_time_all_, jetPhi_time_all_, jet_pfIndices_time_all_, jetResponse_PR_time_all_,genPt_time_all_,genEta_time_all_, genEtaDen_time_all_, puFracPt_algo_time_all_, puFracCount_algo_time_all_,puFracPt_truth_time_all_, puFracCount_truth_time_all_, jetDeltaR_time_all_,pf_indices_time_all_,
     totalRecoJetsClean_time, totalPUJets_time, totalGenJets_time,nGenMatched_time,nMatchedReco_time,puJetFraction_time_all_, efficiency_time_, effLossAmbig_time_, effWithAmbig_time_, mistag_time_, purity_time_);
 
 
 processFastJetCollection(timeJets4D,  genJets, jetMatched_time4D_all_, genJetMatched_time4D_all_, genMatchedDen_time4D_all_,
-    jetIsHS_time4D_all_,jetIsPU_time4D_all_,jetIsAmbiguous_time4D_all_,jetIsUnknown_time4D_all_, jetPt_time4D_all_, jetAbsEta_time4D_all_, jetPhi_time4D_all_, jet_pfIndices_time4D_all_, jetResponse_PR_time4D_all_,genPt_time4D_all_, genEta_time4D_all_, genEtaDen_time4D_all_, puFracPt_algo_time4D_all_, puFracCount_algo_time4D_all_,puFracPt_truth_time4D_all_, puFracCount_truth_time4D_all_, jetDeltaR_time4D_all_,pf_indices_time4D_all_,
+    jetIsHS_time4D_all_,jetIsPU_time4D_all_,jetIsAmbiguous_time4D_all_,jetIsUnknown_time4D_all_, jetPt_time4D_all_,jetEta_time4D_all_, jetAbsEta_time4D_all_, jetPhi_time4D_all_, jet_pfIndices_time4D_all_, jetResponse_PR_time4D_all_,genPt_time4D_all_, genEta_time4D_all_, genEtaDen_time4D_all_, puFracPt_algo_time4D_all_, puFracCount_algo_time4D_all_,puFracPt_truth_time4D_all_, puFracCount_truth_time4D_all_, jetDeltaR_time4D_all_,pf_indices_time4D_all_,
     totalRecoJetsClean_time4D, totalPUJets_time4D, totalGenJets_time4D,nGenMatched_time4D,nMatchedReco_time4D,puJetFraction_time4D_all_, efficiency_time4D_, effLossAmbig_time4D_, effWithAmbig_time4D_, mistag_time4D_,purity_time4D_);
-
 
 
 //std::cout << "Valid timing   : " << nValid << std::endl;

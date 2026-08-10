@@ -986,10 +986,52 @@ void JetTreeProducer_Reco::analyze(const edm::Event& iEvent,
         // ONLY CHARGED PF HAS TRACKS
         // =========================================
 //        if (!isInMTD) continue;
+        if (pf.charge() != 0 &&(iPF == 2310 || iPF == 4194))
+        {   
+            std::cout
+                << "\n========== TRACE PF ==========\n"
+                << "iPF              = " << iPF << "\n"
+                << "pt               = " << pf.pt() << "\n"
+                << "eta              = " << pf.eta() << "\n"
+                << "charge           = " << pf.charge() << "\n"
+                << "isCharged        = " << isCharged << "\n"
+                << "isInMTD          = " << isInMTD << "\n"
+                << "trackRef.isNonnull= "
+                << pf.trackRef().isNonnull() << "\n"
+                << "trackRef.isAvailable= "
+                << pf.trackRef().isAvailable() << "\n"
+                << "==============================\n";
+        }
 
-        if (isInMTD&&isCharged&&pf.trackRef().isAvailable())
+//        if (isInMTD&&isCharged&&pf.trackRef().isAvailable())
+        if (isCharged&&pf.trackRef().isAvailable())//For debugging
         {
+
+            std::cout
+        << "\n========== TRACE CHARGED PF ==========\n"
+        << "iPF              = " << iPF << "\n"
+        << "pt               = " << pf.pt() << "\n"
+        << "eta              = " << pf.eta() << "\n"
+        << "charge           = " << pf.charge() << "\n"
+        << "isInMTD          = " << isInMTD << "\n"
+        << "trackRef.isNonnull= " << pf.trackRef().isNonnull() << "\n"
+        << "trackRef.isAvailable= " << pf.trackRef().isAvailable() << "\n"
+        << "======================================\n";
+
+
             reco::TrackRef trkRef = pf.trackRef();
+            if (iPF == 2310)
+            {
+                std::cout
+            << "\n========== TRACE PF 2310 ==========\n"
+            << "pt        = " << pf.pt() << "\n"
+            << "eta       = " << pf.eta() << "\n"
+            << "charge    = " << pf.charge() << "\n"
+            << "isInMTD   = " << isInMTD << "\n"
+            << "track nonnull = " << pf.trackRef().isNonnull() << "\n"
+            << "track available = " << pf.trackRef().isAvailable() << "\n"
+            << "===================================\n";
+            } 
 
             if (trkRef.isNonnull())
             {
@@ -1101,6 +1143,13 @@ void JetTreeProducer_Reco::analyze(const edm::Event& iEvent,
                 reco::TrackRefVector trkVec;
                 trkVec.push_back(trkRef);
 
+                if (iPF == 2310 || iPF == 4194)
+                {
+                    std::cout
+                        << "TRACE: recoToSimHandle.isValid() = "
+                        << recoToSimHandle.isValid()
+                        << std::endl;
+                }
                 // =========================================
                 // RECO → SIM ASSOCIATION
                 // pv.z(): reconstructed primary vertex z
@@ -1112,9 +1161,24 @@ void JetTreeProducer_Reco::analyze(const edm::Event& iEvent,
                     //A TrackingParticle is a GEANT-level truth object representing a simulated charged particle.
                     edm::RefToBase<reco::Track> trackBaseRef(trkRef);
                     auto found = recoToSimHandle->find(trackBaseRef);//Which simulated TrackingParticle produced this reconstructed track?
+                    if (iPF == 2310 || iPF == 4194)
+                    {
+                    std::cout
+                            << "TRACE: recoToSim find result = "
+                            << (found != recoToSimHandle->end())
+                            << std::endl;
+                    }
+
                     if (found != recoToSimHandle->end())
                     {
                         const auto& tpVec = found->val;
+                        if (iPF == 2310 || iPF == 4194)
+                        {
+                        std::cout
+                        << "TRACE: tpVec.size() = "
+                        << tpVec.size()
+                        << std::endl;
+                        }
 
                         if (!tpVec.empty())
                         {
@@ -1139,6 +1203,103 @@ void JetTreeProducer_Reco::analyze(const edm::Event& iEvent,
                                 isHS = 0;
                                 isPU = 1;
                             }//End of else
+                   //-----Debugging----
+                   if (iPF == 2310 || iPF == 4194)
+                   {
+                    std::cout
+                        << "TRACE: recoToSimHandle.isValid() = "
+                        << recoToSimHandle.isValid()
+                        << std::endl;
+                   }
+
+bool debugPF =
+    (iPF == 1938 ||
+     iPF == 1948 ||
+     iPF == 1860 ||
+     iPF == 1859 ||
+     iPF == 1941 ||
+     iPF == 1936 ||
+     iPF == 1854 ||
+     iPF == 2113);
+
+if (debugPF && pf.charge() != 0)
+{
+    std::cout
+        << "\n========== DEBUG PF =========="
+        << "\niPF = " << iPF
+        << "\npt = " << pf_pt[iPF]
+        << "\neta = " << pf_eta[iPF]
+        << "\ncharge = " << pf_charge[iPF]
+        << "\ntpRef.isNonnull() = " << tpRef.isNonnull()
+        << std::endl;
+
+    if (tpRef.isNonnull())
+    {
+        std::cout
+            << "TP event = "
+            << tpRef->eventId().event()
+            << "\nTP bunch crossing = "
+            << tpRef->eventId().bunchCrossing()
+            << std::endl;
+    }
+    else
+    {
+        std::cout
+            << "TP = NULL"
+            << std::endl;
+    }
+}
+if (debugPF)
+{
+    std::cout
+        << "Assigned:"
+        << " isHS=" << isHS
+        << " isPU=" << isPU
+        << std::endl;
+}
+
+if (debugPF)
+{
+    std::cout
+        << "PF idx=" << iPF
+        << " pt=" << pf_pt[iPF]
+        << " charge=" << pf_charge[iPF]
+        << " TP=" << tpRef.isNonnull()
+        << " event=";
+
+    if (tpRef.isNonnull())
+        std::cout << tpRef->eventId().event();
+    else
+        std::cout << "NONE";
+
+    std::cout
+        << " isHS=" << isHS
+        << " isPU=" << isPU
+        << std::endl;
+}
+
+if (pf.charge() != 0 &&
+    (iPF == 1936 ||
+     iPF == 1938 ||
+     iPF == 1941 ||
+     iPF == 1948 ||
+     iPF == 2113))
+{
+    std::cout
+        << "STORE PF TRUTH:"
+        << " iPF=" << iPF
+        << " pt=" << pf_pt[iPF]
+        << " charge=" << pf_charge[iPF]
+        << " isHS=" << isHS
+        << " isPU=" << isPU
+        << " pf_isHS_truth[iPF]=" << pf_isHS_truth[iPF]
+        << " pf_isPU_truth[iPF]=" << pf_isPU_truth[iPF]
+        << std::endl;
+}
+
+
+                    //---End of debugging--------
+
                         }//End of if (!tpVec.empty())
                     }//End of if (found != recoToSimHandle->end())
                 }//End of if (recoToSimHandle.isValid())
@@ -1164,6 +1325,15 @@ void JetTreeProducer_Reco::analyze(const edm::Event& iEvent,
     pf_dt.push_back(dt);
     pf_dtError.push_back(dtErr);
     pf_dtSig.push_back(dtSig);
+
+    std::cout
+    << "STORE PF TRUTH: iPF=" << iPF
+    << " local isHS=" << isHS
+    << " local isPU=" << isPU
+    << " stored HS=" << pf_isHS_truth[iPF]
+    << " stored PU=" << pf_isPU_truth[iPF]
+    << std::endl;
+
 
     // -----------------------------------
     // Fill FastJet collections
@@ -1418,45 +1588,37 @@ recoCandidates.clear();
 recoCandidates.resize(jetsIn.size());
 int iJet=0;
 for (const auto& jet : jetsIn)
-{
+{    
     std::vector<unsigned int> pf_indices_this_jet;
     pf_indices_this_jet = getPFIndicesFromPFJet(jet);
     if (jet.pt() < 20.) continue;//Constrain of Reco jet Pt
+        
+        std::cout
+        << "\n========== ENTER processJetCollection =========="
+        << "\niJet = " << iJet
+        << "\njetsIn.size() = " << jetsIn.size()
+        << std::endl;
 
+//   if (iJet != 7)continue;//For Debugging
 //    std::cout
 //      << "PF indices found = "
 //      << pf_indices_this_jet.size()
 //      << std::endl;
 
+    std::cout
+        << "DEBUG: REACHED JET 7"
+        << " iJet=" << iJet
+        << " jetsIn.size()=" << jetsIn.size()
+        << std::endl;
 
-//    std::cout
-//        << "\n=====================================\n"
-//        << "processJetCollection(): jetsIn.size() = "
-//        << "Jet " << iJet
-//        << "  pt=" << jet.pt()
-//        << "  nConst = " << jet.getJetConstituents().size()
-//        << std::endl;
+    std::cout
+        << "\n=====================================\n"
+        << "processJetCollection(): jetsIn.size() = "
+        << "Jet " << iJet
+        << "  pt=" << jet.pt()
+        << "  nConst = " << jet.getJetConstituents().size()
+        << std::endl;
 
-
-        for (size_t i = 0; i < std::min(size_t(10), pf_indices_this_jet.size()); ++i)
-        {
-            unsigned int idx = pf_indices_this_jet[i];
-
-//            std::cout
-//                << "  constituent " << i
-//                << "  PF index = " << idx;
-
-            if (idx < pfcands->size())
-            {
-                const auto& pf = pfcands->at(idx);
-
-//                std::cout
-//                    << "  pt=" << pf.pt()
-//                    << "  charge=" << pf.charge();
-            }
-
-//            std::cout << std::endl;
-        }//End of for (size_t i = 0; i < std::min(size_t(10), pf_indices_this_jet.size()); ++i)
 
         double sumPt = 0;
 
@@ -1467,12 +1629,6 @@ for (const auto& jet : jetsIn)
 
             sumPt += pfcands->at(idx).pt();
         }
-
-//        std::cout
-//            << "Jet pt = " << jet.pt()
-//            << "   sum constituent pt = "
-//            << sumPt
-//            << std::endl;
 
 
 
@@ -1499,26 +1655,67 @@ for (const auto& jet : jetsIn)
     float sumPtKeep = 0.f;
     float sumPtReject = 0.f;
 
+    int nDebugCharged = 0;//For Debugging
+    
+    int nCharged = 0;
+    int nNeutral = 0;
+    float chargedPt = 0.f;
+    float neutralPt = 0.f;
+
+    std::cout
+    << "DEBUG BEFORE PF LOOP: iJet=" << iJet
+    << " pf_indices_this_jet.size()="
+    << pf_indices_this_jet.size()
+    << std::endl;
+
     for (unsigned int idx : pf_indices_this_jet)
-    {   if (idx >= pf_pt.size())
-           continue;
+    { 
+          std::cout
+            << "DEBUG LOOP: iJet=" << iJet
+            << " idx=" << idx
+            << " pf_pt.size()=" << pf_pt.size()
+            << " pf_charge.size()=" << pf_charge.size()
+            << std::endl;
+
+        if (idx >= pf_pt.size()) continue;
+
+        //--Debugging---
+        if (pf_charge[idx] != 0)
+        {
+            std::cout
+                << "DEBUG CHECK: iJet=" << iJet
+                << " idx=" << idx
+                << " charge=" << pf_charge[idx]
+                << std::endl;
+        }  
+
+//        if (iJet == 7 && pf_charge[idx] != 0 && nDebugCharged < 10)
+        if (iJet == 7 && pf_charge[idx] != 0)
+        {
+            ++nDebugCharged;
+
+            std::cout
+                << "\n========================================\n"
+                << "DEBUG Reco jet 7 - charged PF candidate "
+                << nDebugCharged << "\n"
+                << "PF index = " << idx << "\n"
+                << "PF pt    = " << pf_pt[idx] << "\n"
+                << "PF eta   = " << pf_eta[idx] << "\n"
+                << "PF charge= " << pf_charge[idx] << "\n"
+                << "pf_isHS_truth = " << pf_isHS_truth[idx] << "\n"
+                << "pf_isPU_truth = " << pf_isPU_truth[idx] << "\n";
+
+       }
+
+
+    //----End of Debugging--------
+
+
         ++nAlgoKeep;
         sumPtKeep += pf_pt[idx];
 
-
-        if (idx >= pf_pt.size())
-            continue;
-
         sumPtTot += pf_pt[idx];
 
-//        //====Debugging=====//
-//        std::cout
-//           << "PF index = " << idx
-//           << "  pt = " << pf_pt[idx]
-//           << "  HS = " << pf_isHS_truth[idx]
-//           << "  PU = " << pf_isPU_truth[idx]
-//           << std::endl;
-           
         if (pf_isHS_truth[idx] == 1)
         {
             ++nHS;
@@ -1534,25 +1731,30 @@ for (const auto& jet : jetsIn)
         {
             sumPtUnknown += pf_pt[idx];
         }
-
-        //====Debugging=====//
-//        if (iJet < 3)
-//        {
-//            std::cout << "\n===== Jet " << iJet << " summary =====\n";
-//            std::cout << "nHS        = " << nHS << '\n';
-//            std::cout << "nPU        = " << nPU << '\n';
-//            std::cout << "sumPtHS    = " << sumPtHS << '\n';
-//            std::cout << "sumPtPU    = " << sumPtPU << '\n';
-//            std::cout << "sumPtTotal = " << sumPtTot << '\n';
-//            std::cout << "PU frac(count) = "
-//                      << ((nHS + nPU) ? float(nPU)/(nHS+nPU) : -1)
-//                      << '\n';
-//            std::cout << "PU frac(pt) = "
-//                      << ((sumPtTot > 0) ? sumPtPU/sumPtTot : -1)
-//                      << "\n\n";
-//        }//end of if (iJet < 3)
+//---Debugging----        
+std::cout
+    << "PF idx=" << idx
+    << " pt=" << pf_pt[idx]
+    << " charge=" << pf_charge[idx]
+    << " isHS=" << pf_isHS_truth[idx]
+    << " isPU=" << pf_isPU_truth[idx]
+    << std::endl;
 
 }//End of for (unsigned int idx : pf_indices_this_jet), End of PF constituent loop
+
+    if (iJet == 7)
+    {
+        std::cout
+           << "\n========== Reco 7 TRUTH SUMMARY ==========\n"
+           << "nCharged          = " << nCharged << "\n"
+           << "nNeutral          = " << nNeutral << "\n"
+           << "chargedPt         = " << chargedPt << "\n"
+           << "neutralPt         = " << neutralPt << "\n"
+           << "sumPtHS           = " << sumPtHS << "\n"
+           << "sumPtPU           = " << sumPtPU << "\n"
+           << "sumPtUnknown      = " << sumPtUnknown << "\n"
+           << "===========================================\n";
+    }//End of debugging
 
     // Compute jet-level quantities AFTER all constituents have been counted
     // puFracCount_truth and puFracPt_truth are jet-level quantities, so they must be computed once per jet,after the constituent loop finishes.
@@ -1622,6 +1824,14 @@ for (const auto& jet : jetsIn)
 
         }//End of  if (dR < 1.0)
 
+    //---Debugging-----//
+        std::cout
+    << "sumPtHS = " << sumPtHS
+    << " sumPtPU = " << sumPtPU
+    << " sumPtUnknown = " << sumPtUnknown
+    << " iGen = " << iGen
+    << std::endl;
+    //----End of Debugging-----//
     }//for (size_t iGen = 0; iGen < genJets.size(); ++iGen)
 
 //    jetDeltaR_all_.push_back(bestDR);
@@ -1670,12 +1880,6 @@ for (const auto& jet : jetsIn)
 
   maxGenJetsMatched =
       std::max(maxGenJetsMatched, genJets.size());
-
-//  std::cout << "Current maximum Reco jets = "
-//            << maxRecoJetsMatched
-//            << ", Gen jets = "
-//            << maxGenJetsMatched
-//            << std::endl;
 
 
 //  if (jetMatched_all_.size() > 15 || genJets.size() > 15)
@@ -1742,8 +1946,14 @@ jetIsHS_all_.clear();
 jetIsPU_all_.clear();
 jetIsAmbiguous_all_.clear();
 
+
 totalRecoJetsClean = 0;
 totalPUJets = 0;
+
+std::cout
+<< "Unknown size before matching = "
+<< jetIsUnknown_all_.size()
+<< std::endl;
 
 for (size_t iReco = 0; iReco < jetMatched_all_.size(); ++iReco)
 {
@@ -1752,7 +1962,7 @@ for (size_t iReco = 0; iReco < jetMatched_all_.size(); ++iReco)
     bool matchedAmbiguousJet = false;
 
     int iGen = assignedGenIndex[iReco];
-/*
+
     //----DEBUGGING-------//
     std::cout
     << "Reco "
@@ -1782,12 +1992,14 @@ for (size_t iReco = 0; iReco < jetMatched_all_.size(); ++iReco)
             bestDR = dr;
             bestGen = ig;
         }
-    }
+    }//End of for (size_t ig = 0; ig < genJets.size(); ++ig)
 
     std::cout
         << "\n======= Unmatched RECO jet =======\n"
         << "Reco index = " << iReco
         << "  pt = " << jetPt_all_[iReco]
+        << "  Eta = " << jetEta_all_[iReco]
+        << "  Phi = " << jetPhi_all_[iReco]
         << std::endl;
 
     bool bestGenPassPt = false;
@@ -1798,6 +2010,7 @@ for (size_t iReco = 0; iReco < jetMatched_all_.size(); ++iReco)
             << "Nearest Gen index = " << bestGen
             << "  pt = " << genJets[bestGen].pt()
             << "  eta = " << genJets[bestGen].eta()
+            << "  phi = " << genJets[bestGen].phi()
             << "  dR = " << bestDR
             << std::endl;
 
@@ -1834,6 +2047,7 @@ for (size_t iReco = 0; iReco < jetMatched_all_.size(); ++iReco)
     int nNeutral = 0;
     float chargedPt = 0.f;
     float neutralPt = 0.f;
+    
 
     for (unsigned int idx : jet_pfIndices_all_[iReco])
     {
@@ -1849,7 +2063,7 @@ for (size_t iReco = 0; iReco < jetMatched_all_.size(); ++iReco)
             ++nCharged;
             chargedPt += pf.pt();
         }
-    }
+    }//End of for (unsigned int idx : jet_pfIndices_all_[iReco])
 
     float neutralFraction =
     (chargedPt + neutralPt > 0.f)
@@ -1877,9 +2091,9 @@ for (size_t iReco = 0; iReco < jetMatched_all_.size(); ++iReco)
  }// End of for if (iGen == -1)
 
    //---DEBUBBING END-----//
-*/
+
     if (iGen == -1)
-    {
+   {
         matchedPUJet = true;
     }
     else
@@ -1902,7 +2116,78 @@ for (size_t iReco = 0; iReco < jetMatched_all_.size(); ++iReco)
     jetIsHS_all_.push_back(matchedHSJet);
     jetIsPU_all_.push_back(matchedPUJet);
     jetIsAmbiguous_all_.push_back(matchedAmbiguousJet);
+    //---Debugging---
+
+    if (jetIsUnknown_all_[iReco] && matchedHSJet)
+    {
+        std::cout
+            << "Unknown + HS : Reco " << iReco
+            << " eta=" << jetEta_all_[iReco]
+            << " pt=" << jetPt_all_[iReco]
+  //          << " nCharged=" << nCharged
+//            << " nNeutral=" << nNeutral
+            << " assignedGenPt=" << genJets[iGen].pt()
+            << " dR=" << assignedDR[iReco]
+            << std::endl;
+    }
+
+    if (jetIsUnknown_all_[iReco] && matchedPUJet)
+    {
+        std::cout
+            << "Unknown + PU : Reco " << iReco
+            << " eta=" << jetEta_all_[iReco]
+            << " pt=" << jetPt_all_[iReco]
+//            << " nCharged=" << nCharged
+//            << " nNeutral=" << nNeutral
+            << " assignedGenPt=" << genJets[iGen].pt()
+            << " dR=" << assignedDR[iReco]
+            << std::endl;
+    }
+
+bool unk = jetIsUnknown_all_[iReco];
+
+    int nMatchClass =
+        (matchedHSJet ? 1 : 0) +
+        (matchedPUJet ? 1 : 0) +
+        (matchedAmbiguousJet ? 1 : 0);
+
+    if (nMatchClass != 1)
+    {
+        std::cout
+            << "ERROR: matching classification\n"
+            << "Reco " << iReco
+            << " HS=" << matchedHSJet
+            << " PU=" << matchedPUJet
+            << " Amb=" << matchedAmbiguousJet
+            << " Unknown=" << unk
+            << std::endl;
+    }//End of if (nMatchClass != 1)
+
+    if (unk)
+    {
+        std::cout
+            << "Unknown reco " << iReco
+            << " -> "
+            << (matchedHSJet ? "HS" :
+                matchedPUJet ? "PU" : "Ambiguous")
+            << std::endl;
+    }//End of if (unk)
+
+
+  if (jetIsPU_all_.back() && jetIsUnknown_all_[iReco])
+  {
+       std::cout
+           << "PU + Unknown : Reco " << iReco
+           << "  pt=" << jetPt_all_[iReco]
+           << "  sumPtHS=" /* print saved value if available */
+           << std::endl;
+   }//End of if (jetIsPU_all_.back() && jetIsUnknown_all_[iReco])
+
+
+//-- End of debugging--
 }//End of for (size_t iReco = 0; iReco < jetMatched_all_.size(); ++iReco)
+
+
 
 genEtaDen_all_.clear();
 for (size_t iReco = 0; iReco < assignedGenIndex.size(); ++iReco)
@@ -1923,6 +2208,13 @@ for (size_t iReco = 0; iReco < assignedGenIndex.size(); ++iReco)
         jetResponse_all_[iReco] =
             jetPt_all_[iReco] / genJets[iGen].pt();
     }
+//DEBUGGING
+std::cout
+    << "Reco " << iReco
+    << " Unknown=" << jetIsUnknown_all_[iReco]
+    << " assignedGen=" << assignedGenIndex[iReco]
+    << " dR=" << assignedDR[iReco]
+    << std::endl;
 }
 
 genMatchedDen_all_.clear();
@@ -1988,10 +2280,21 @@ for (size_t iGen = 0; iGen < genJets.size(); ++iGen)
   (totalRecoJetsClean+totalPUJets)
   :
   -1.f;
+  //--Debugging---//
+  std::cout
+    << "Sizes : "
+    << "Pt=" << jetPt_all_.size()
+    << " Unknown=" << jetIsUnknown_all_.size()
+    << " Match=" << jetMatched_all_.size()
+    << " dR=" << jetDeltaR_all_.size()
+    << " HS=" << jetIsHS_all_.size()
+    << " PU=" << jetIsPU_all_.size()
+    << " Amb=" << jetIsAmbiguous_all_.size()
+    << std::endl;
 };//end of auto processJetCollection = [&](){
 
 
-
+/*
 auto processFastJetCollection = [&](const std::vector<fastjet::PseudoJet>& jetsIn,
                                 const std::vector<reco::GenJet>& genJets,
                                 std::vector<int>& jetMatched_all_,     // RECO → GEN match flag
@@ -2095,34 +2398,14 @@ for (const auto& jet : jetsIn)
         pf_indices_this_jet.push_back(static_cast<unsigned int>(idx));
     }//End of for (const auto& constituent : jet.constituents())
 
-//    std::cout
-//        << "\n=====================================\n"
-//        << "processJetCollection(): jetsIn.size() = "
-//        << "Jet " << iJet
-//        << "  pt=" << jet.pt()
-//        << "  nConst = " << pf_indices_this_jet.size()
-//        << std::endl;
+    std::cout
+        << "\n=====================================\n"
+        << "processJetCollection(): jetsIn.size() = "
+        << "Jet " << iJet
+        << "  pt=" << jet.pt()
+        << "  nConst = " << pf_indices_this_jet.size()
+        << std::endl;
 
-
-        for (size_t i = 0; i < std::min(size_t(10), pf_indices_this_jet.size()); ++i)
-        {
-            unsigned int idx = pf_indices_this_jet[i];
-
-//            std::cout
-//                << "  constituent " << i
-//                << "  PF index = " << idx;
-
-            if (idx < pfcands->size())
-            {
-                const auto& pf = pfcands->at(idx);
-
-//                std::cout
-//                    << "  pt=" << pf.pt()
-//                    << "  charge=" << pf.charge();
-            }
-
-            std::cout << std::endl;
-        }//End of for (size_t i = 0; i < std::min(size_t(10), pf_indices_this_jet.size()); ++i)
 
         double sumPt = 0;
 
@@ -2134,11 +2417,6 @@ for (const auto& jet : jetsIn)
             sumPt += pfcands->at(idx).pt();
         }
 
-        std::cout
-            << "Jet pt = " << jet.pt()
-            << "   sum constituent pt = "
-            << sumPt
-            << std::endl;
 
     jet_pfIndices_all_.push_back(pf_indices_this_jet);
     pf_indices_general_all_.push_back(pf_indices_this_jet);
@@ -2170,19 +2448,7 @@ for (const auto& jet : jetsIn)
         ++nAlgoKeep;
         sumPtKeep += pf_pt[idx];
 
-
-        if (idx >= pf_pt.size())
-            continue;
-
         sumPtTot += pf_pt[idx];
-
-//        //====Debugging=====//
-//        std::cout
-//           << "PF index = " << idx
-//           << "  pt = " << pf_pt[idx]
-//           << "  HS = " << pf_isHS_truth[idx]
-//           << "  PU = " << pf_isPU_truth[idx]
-//           << std::endl;
 
         if (pf_isHS_truth[idx] == 1)
         {
@@ -2200,23 +2466,6 @@ for (const auto& jet : jetsIn)
             sumPtUnknown += pf_pt[idx];
         }
 
-//        //====Debugging=====//
-//        if (iJet < 3)
-//        {
-//            std::cout << "\n===== Jet " << iJet << " summary =====\n";
-//            std::cout << "nHS        = " << nHS << '\n';
-//            std::cout << "nPU        = " << nPU << '\n';
-//            std::cout << "sumPtHS    = " << sumPtHS << '\n';
-//            std::cout << "sumPtPU    = " << sumPtPU << '\n';
-//            std::cout << "sumPtTotal = " << sumPtTot << '\n';
-//            std::cout << "PU frac(count) = "
-//                      << ((nHS + nPU) ? float(nPU)/(nHS+nPU) : -1)
-//                      << '\n';
-//            std::cout << "PU frac(pt) = "
-//                      << ((sumPtTot > 0) ? sumPtPU/sumPtTot : -1)
-//                      << "\n\n";
-//        }//end of if (iJet < 3)
-
 
     }//End of for (unsigned int idx : pf_indices_this_jet), End of PF constituent loop
 
@@ -2232,14 +2481,14 @@ for (const auto& jet : jetsIn)
         sumPtPU / sumPtTot :
         -1.f;
 
-//    std::cout
-//    << "Jet summary:"
-//    << " nPF=" << pf_indices_this_jet.size()
-//    << " sumPtTot=" << sumPtTot
-//    << " sumPtHS=" << sumPtHS
-//    << " sumPtPU=" << sumPtPU
-//    << " sumPtUnknown=" << sumPtUnknown
-//    << std::endl;
+    std::cout
+    << "Jet summary:"
+    << " nPF=" << pf_indices_this_jet.size()
+    << " sumPtTot=" << sumPtTot
+    << " sumPtHS=" << sumPtHS
+    << " sumPtPU=" << sumPtPU
+    << " sumPtUnknown=" << sumPtUnknown
+    << std::endl;
 
     //--constituent-based HS/PU jet definition, Not generator-level definition---
     //constituentHSJet=HS fraction > 50%
@@ -2314,9 +2563,9 @@ for (const auto& jet : jetsIn)
 
     if (isUnknownJet)
     {
-//        std::cout
-//            << "Unknown jet"
-//            << std::endl;
+        std::cout
+            << "Unknown jet"
+            << std::endl;
     }
 iJet++;
 
@@ -2328,21 +2577,23 @@ iJet++;
   maxGenJetsMatched =
       std::max(maxGenJetsMatched, genJets.size());
 
-//  std::cout << "Current maximum Reco jets = "
-//            << maxRecoJetsMatched
-//            << ", Gen jets = "
-//            << maxGenJetsMatched
-//            << std::endl;
-
-//  if (jetMatched_all_.size() > 15 || genJets.size() > 15)
-//  {
-//    std::cout << "\n========== Matching Statistics ==========\n";
-//    std::cout << "Reco jets entering matching : "
-//            << jetMatched_all_.size() << std::endl;
-//    std::cout << "Gen jets entering matching  : "
-//            << genJets.size() << std::endl;
-//  }
-
+  if (jetMatched_all_.size() > 15 || genJets.size() > 15)
+  {
+    std::cout << "\n========== Matching Statistics ==========\n";
+    std::cout << "Reco jets entering matching : "
+            << jetMatched_all_.size() << std::endl;
+    std::cout << "Gen jets entering matching  : "
+            << genJets.size() << std::endl;
+  }
+//----Debugging----//
+std::cout
+    << "\n=====================================\n"
+    << "Event summary\n"
+    << "=====================================\n"
+    << "PF candidates        = " << pfcands->size() << '\n'
+    << "Reco jets (>20 GeV)  = " << jetMatched_all_.size() << '\n'
+    << "Gen jets (>20 GeV)   = " << genJets.size() << '\n';
+//----End of debugging----//
 
 //Sort each RECO jet's candidate list by deltaR
 for (auto& candList : recoCandidates)
@@ -2361,6 +2612,22 @@ for (auto& candList : recoCandidates)
 std::vector<int> assignedGenIndex(jetMatched_all_.size(), -1);
 std::vector<int> assignedRecoIndex(genJets.size(), -1);
 std::vector<float> assignedDR(jetMatched_all_.size(), -1.f);
+
+//---Debugging---//
+int nMatched = 0;
+int nUnmatched = 0;
+
+for (size_t i = 0; i < assignedGenIndex.size(); ++i)
+{
+    if (assignedGenIndex[i] != -1)
+        ++nMatched;
+    else
+        ++nUnmatched;
+}
+std::cout
+    << "Matched jets         = " << nMatched << '\n'
+    << "Unmatched jets       = " << nUnmatched << '\n';
+//---End of Debugging---//
 
 // Cost matrix used for global one-to-one assignment.
 // costMatrix[iGen][iReco] = ΔR if the pair is allowed,
@@ -2398,6 +2665,7 @@ const float dR_PU = 0.4f;
 jetIsHS_all_.clear();
 jetIsPU_all_.clear();
 jetIsAmbiguous_all_.clear();
+jetIsUnknown_all_.clear();
 
 totalRecoJetsClean = 0;
 totalPUJets = 0;
@@ -2409,7 +2677,7 @@ for (size_t iReco = 0; iReco < jetMatched_all_.size(); ++iReco)
     bool matchedAmbiguousJet = false;
 
     int iGen = assignedGenIndex[iReco];
-/*
+
     //----DEBUGGING-------//
     std::cout
     << "Reco "
@@ -2426,8 +2694,15 @@ for (size_t iReco = 0; iReco < jetMatched_all_.size(); ++iReco)
     float bestDR = 999.f;
     int bestGen = -1;
 
+std::cout << "\nGen jets entering matching:\n";
     for (size_t ig = 0; ig < genJets.size(); ++ig)
     {
+        std::cout
+          << "Gen " << ig
+          << "  pt=" << genJets[ig].pt()
+          << "  eta=" << genJets[ig].eta()
+          << "  phi=" << genJets[ig].phi()
+          << '\n';
         float dr = reco::deltaR(
             jetEta_all_[iReco],
             jetPhi_all_[iReco],
@@ -2445,6 +2720,8 @@ for (size_t iReco = 0; iReco < jetMatched_all_.size(); ++iReco)
         << "\n======= Unmatched RECO jet =======\n"
         << "Reco index = " << iReco
         << "  pt = " << jetPt_all_[iReco]
+        << "  Eta = " << jetEta_all_[iReco]
+        << "  Phi = " << jetPhi_all_[iReco]
         << std::endl;
 
     bool bestGenPassPt = false;
@@ -2456,6 +2733,7 @@ for (size_t iReco = 0; iReco < jetMatched_all_.size(); ++iReco)
             << "Nearest Gen index = " << bestGen
             << "  pt = " << genJets[bestGen].pt()
             << "  eta = " << genJets[bestGen].eta()
+            << "  phi = " << genJets[bestGen].phi()
             << "  dR = " << bestDR
             << std::endl;
 
@@ -2537,7 +2815,7 @@ for (size_t iReco = 0; iReco < jetMatched_all_.size(); ++iReco)
  }// End of for if (iGen == -1)
 
    //---DEBUBBING END-----//
-*/
+
 
     if (iGen== -1)
     {
@@ -2651,18 +2929,16 @@ for (size_t iGen = 0; iGen < genJets.size(); ++iGen)
   -1.f;
 
 };//End of auto processFastJetCollection = [&]()
-
+*/
 
 processJetCollection(*jets,  genJets, jetMatched_puppi_all_, genJetMatched_puppi_all_, genMatchedDen_puppi_all_,
     jetIsHS_puppi_all_,jetIsPU_puppi_all_,jetIsAmbiguous_puppi_all_,jetIsUnknown_puppi_all_, jetPt_puppi_all_,jetEta_puppi_all_, jetAbsEta_puppi_all_, jetPhi_puppi_all_, jet_pfIndices_puppi_all_, jetResponse_PR_puppi_all_,genPt_puppi_all_, genEta_puppi_all_, genEtaDen_puppi_all_,puFracPt_algo_puppi_all_, puFracCount_algo_puppi_all_, puFracPt_truth_puppi_all_, puFracCount_truth_puppi_all_,jetDeltaR_puppi_all_,pf_indices_puppi_all_,
     totalRecoJetsClean_puppi, totalPUJets_puppi,totalGenJets_puppi,nGenMatched_puppi,nMatchedReco_puppi, puJetFraction_puppi_all_,efficiency_puppi_, effLossAmbig_puppi_,effWithAmbig_puppi_,mistag_puppi_, purity_puppi_);
 
-
-
+/*
 processFastJetCollection(pfrawJets,  genJets, jetMatched_pfraw_all_, genJetMatched_pfraw_all_, genMatchedDen_pfraw_all_,
     jetIsHS_pfraw_all_, jetIsPU_pfraw_all_,jetIsAmbiguous_pfraw_all_,jetIsUnknown_pfraw_all_,jetPt_pfraw_all_,jetEta_pfraw_all_, jetAbsEta_pfraw_all_, jetPhi_pfraw_all_, jet_pfIndices_pfraw_all_, jetResponse_PR_pfraw_all_,genPt_pfraw_all_, genEta_pfraw_all_, genEtaDen_pfraw_all_, puFracPt_algo_pfraw_all_, puFracCount_algo_pfraw_all_,puFracPt_truth_pfraw_all_, puFracCount_truth_pfraw_all_,jetDeltaR_pfraw_all_,pf_indices_pfraw_all_,
     totalRecoJetsClean_pfraw, totalPUJets_pfraw,totalGenJets_pfraw,nGenMatched_pfraw,nMatchedReco_pfraw, puJetFraction_pfraw_all_, efficiency_pfraw_, effLossAmbig_pfraw_, effWithAmbig_pfraw_, mistag_pfraw_, purity_pfraw_);
-
 
 
 processFastJetCollection(looseJets,  genJets, jetMatched_loose_all_, genJetMatched_loose_all_, genMatchedDen_loose_all_,
@@ -2683,7 +2959,7 @@ processFastJetCollection(timeJets,  genJets, jetMatched_time_all_, genJetMatched
 processFastJetCollection(timeJets4D,  genJets, jetMatched_time4D_all_, genJetMatched_time4D_all_, genMatchedDen_time4D_all_,
     jetIsHS_time4D_all_,jetIsPU_time4D_all_,jetIsAmbiguous_time4D_all_,jetIsUnknown_time4D_all_, jetPt_time4D_all_,jetEta_time4D_all_, jetAbsEta_time4D_all_, jetPhi_time4D_all_, jet_pfIndices_time4D_all_, jetResponse_PR_time4D_all_,genPt_time4D_all_, genEta_time4D_all_, genEtaDen_time4D_all_, puFracPt_algo_time4D_all_, puFracCount_algo_time4D_all_,puFracPt_truth_time4D_all_, puFracCount_truth_time4D_all_, jetDeltaR_time4D_all_,pf_indices_time4D_all_,
     totalRecoJetsClean_time4D, totalPUJets_time4D, totalGenJets_time4D,nGenMatched_time4D,nMatchedReco_time4D,puJetFraction_time4D_all_, efficiency_time4D_, effLossAmbig_time4D_, effWithAmbig_time4D_, mistag_time4D_,purity_time4D_);
-
+*/
 
 //std::cout << "Valid timing   : " << nValid << std::endl;
 //std::cout << "Invalid timing : " << nInvalid << std::endl;

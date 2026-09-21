@@ -1554,6 +1554,8 @@ effWithAmbig       = -1.f;
 mistag             = -1.f;
 purity_out         = -1.f;
 
+long long totalMatchedReco = 0;//Debugging
+long long totalMatchedGen  = 0;//Debugging
 
 //    std::cout
 //        << "\n=====================================\n"
@@ -1937,6 +1939,31 @@ for (size_t iReco = 0; iReco < recoCandidates.size(); ++iReco)
         break;
     }
 }//End of for (size_t iReco = 0; iReco < recoCandidates.size(); ++iReco)
+//-----Debugging-----
+int nMatchedRECO = 0;
+int nMatchedGEN  = 0;
+
+for (int x : jetMatched_all_)
+    if (x == 1)
+        ++nMatchedRECO;
+
+for (int x : genJetMatched_all_)
+    if (x == 1)
+       ++nMatchedGEN;
+totalMatchedReco += nMatchedRECO;
+totalMatchedGen  += nMatchedGEN;
+std::cout
+    << "GREEDY MATCH CHECK: "
+    << "matchedRECO = " << totalMatchedReco
+    << " matchedGEN = " << totalMatchedGen
+    << std::endl;
+
+if (nMatchedRECO != nMatchedGEN)
+{
+    std::cout
+        << "ERROR: one-to-one greedy matching count mismatch!"
+        << std::endl;
+}//-[End of debugging---
 
 //The new classification loop
 const float dR_HS = 0.2f;
